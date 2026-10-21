@@ -1,0 +1,30 @@
+# Dependencies & build
+node_modules/
+dist/
+build/
+out/
+release/
+coverage/
+*.tsbuildinfo
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Course materials (copyrighted, not for a public repo)
+docs/Lesson*.pdf
+docs/qd-*.pdf
+
+# Local drafts / exports
+.plans/
