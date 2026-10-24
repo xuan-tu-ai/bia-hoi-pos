@@ -1036,7 +1036,7 @@ Hạn là **cuối ngày** ghi trong bảng. Ai thấy có nguy cơ trễ thì b
 | FE-02 | Sơ đồ bàn, mở bàn | Trung | 02, 03 | 18/11 | |
 | FE-03 | Màn phiên bàn: gọi món, gửi lượt, xem & in phiếu | Trung | 04 | 23/11 | |
 | FE-04 | Chuyển/gộp bàn, hủy/giảm có PIN, tạm tính, thanh toán & VietQR, ca, màn vòi bia | Trung | 05–10 | 26/11 | |
-| FE-05 | Phân hệ Quản trị: thực đơn, khu & bàn, nhân viên, kho keg, giờ vàng | Trung | 11–15 | 28/11 | |
+| FE-05 | Phân hệ Quản trị: thực đơn, khu & bàn, nhân viên, kho keg, giờ vàng | Trung | 11–15 | 27/11 | |
 | FE-06 | Phân hệ Báo cáo (giao diện điện thoại) | Trung | 16–19 | 30/11 | |
 | FE-07 | Triển khai frontend lên Vercel, tích hợp với backend thật | Trung | — | 01/12 | Đường dẫn web công khai |
 | QA-01 | Viết test case cho mọi FR (ít nhất 1 trường hợp đúng + 1 trường hợp lỗi mỗi FR) | Thái | Tất cả | 20/11 | `docs/test-cases.md` |
@@ -1047,11 +1047,11 @@ Hạn là **cuối ngày** ghi trong bảng. Ai thấy có nguy cơ trễ thì b
 
 | Mã | Việc | Người làm | FR | Hạn | Kết quả cần có |
 |---|---|---|---|---|---|
-| QA-03 | Kiểm thử toàn hệ thống theo test case, báo lỗi bằng issue mẫu "Báo lỗi" | Thái | Tất cả | 04/12 | Danh sách lỗi trên GitHub |
+| QA-03 | Kiểm thử toàn hệ thống theo test case, báo lỗi bằng issue mẫu "Báo lỗi" | Thái | Tất cả | 03/12 | Danh sách lỗi trên GitHub |
 | BE-09 | Sửa lỗi backend | Hiếu | — | 04/12 | Lỗi nghiêm trọng & cao đã đóng |
 | FE-08 | Sửa lỗi frontend | Trung | — | 04/12 | Lỗi nghiêm trọng & cao đã đóng |
-| FE-09 | Viết hướng dẫn sử dụng có ảnh chụp màn hình | Trung | Tất cả | 05/12 | `docs/huong-dan-su-dung.md` |
-| QA-04 | Báo cáo kiểm thử: số test case đạt/không đạt, lỗi còn lại | Thái | Tất cả | 06/12 | `docs/bao-cao-kiem-thu.md` |
+| FE-09 | Viết hướng dẫn sử dụng có ảnh chụp màn hình (làm song song với sửa lỗi) | Trung | Tất cả | 04/12 | `docs/huong-dan-su-dung.md` |
+| QA-04 | Báo cáo kiểm thử: số test case đạt/không đạt, lỗi còn lại | Thái | Tất cả | 04/12 | `docs/bao-cao-kiem-thu.md` |
 | PM-04 | Nghiệm thu UAT theo kịch bản demo (họp G4) | Tự + cả nhóm | — | 07/12 | Biên bản G4 |
 
 **Pha 5 — Bàn giao (08/12 – 11/12)**
