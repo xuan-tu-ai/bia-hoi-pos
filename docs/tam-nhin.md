@@ -1,8 +1,8 @@
 # Tầm nhìn: Hệ thống quản lý quầy nhà hàng bia hơi (SaaS)
 
-> **Tài liệu tầm nhìn dài hạn — KHÔNG phải phạm vi bài tập nhóm.** Phạm vi thực hiện xem `bia-hoi-quay-spec.md`; tài liệu này chỉ dùng cho mục "Hướng phát triển" trong báo cáo.
+> **Tài liệu tầm nhìn dài hạn — KHÔNG phải phạm vi bài tập nhóm.** Phạm vi thực hiện (một web app có phân quyền) xem `srs.md`; tài liệu này chỉ dùng cho mục "Hướng phát triển" trong báo cáo cuối kỳ.
+> Các hướng phát triển chính so với phạm vi hiện tại: ứng dụng quầy chạy trên Windows có in nhiệt trực tiếp, app/PWA cho chủ quán và phục vụ, chạy offline với máy chủ cục bộ tại quán, hóa đơn điện tử, tự xác nhận chuyển khoản, nhiều chi nhánh, cảm biến lưu lượng bia trên vòi.
 > Trạng thái: Draft v1 — 2026-10-18
-> Nguồn: phỏng vấn yêu cầu với chủ sản phẩm
 
 ## 1. Tóm tắt
 

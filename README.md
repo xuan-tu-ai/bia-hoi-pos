@@ -2,33 +2,33 @@
 
 Bài tập nhóm môn **Quản trị dự án** — Nhóm 7, ĐH Bách Khoa.
 
-| Thành phần | Thư mục | Công nghệ |
-|---|---|---|
-| App quầy (Windows) | `apps/counter` | Electron + React + Vite |
-| Web quản trị & PWA chủ quán | `apps/admin` | React + Vite (PWA) |
-| Backend API | `apps/api` | Node.js + Fastify + Prisma + PostgreSQL |
-| Mã dùng chung | `packages/shared` | TypeScript |
+Một web app có phân quyền (Nhân viên quầy, Quản lý ca, Chủ quán) gồm 3 phân hệ: **Quầy** (sơ đồ bàn, gọi món, thanh toán), **Quản trị** (thực đơn, bàn, nhân viên, kho keg) và **Báo cáo** (doanh thu, hao hụt bia, nhật ký hủy món).
+
+| Thư mục | Nội dung |
+|---|---|
+| `web/` | Web app — React + Vite + TypeScript |
+| `supabase/` | Migration CSDL, phân quyền (Row Level Security), dữ liệu mẫu |
+| `docs/` | Tài liệu dự án |
 
 ## Tài liệu
 
 - [Đặc tả yêu cầu (SRS)](docs/srs.md)
 - [Kế hoạch quản lý dự án](docs/ke-hoach-quan-ly-du-an.md)
-- [Tầm nhìn dài hạn (ngoài phạm vi)](docs/tam-nhin.md)
+- [Hướng phát triển (ngoài phạm vi)](docs/tam-nhin.md)
 - Biên bản họp: `docs/meetings/` · Báo cáo tuần: `docs/reports/`
 
 ## Quy trình làm việc
 
-1. Nhận việc qua **GitHub Issues** (mỗi issue ghi mã yêu cầu `FR-xx`), theo dõi trên GitHub Projects.
-2. Tạo nhánh từ `develop`: `feature/FR-xx-ten-ngan` (hoặc `fix/...`, `docs/...`).
-3. Commit nhỏ, rõ nghĩa. Mở **Pull Request vào `develop`** theo mẫu, PR ≤ 400 dòng thay đổi.
-4. Nhóm trưởng duyệt PR (trong 24 giờ) rồi merge. Không push thẳng vào `main` / `develop`.
-5. `main` chỉ được merge từ `develop` tại các mốc Gate (tag `v0.x-Gn`).
+1. Nhận việc qua **GitHub Issues** (cả tài liệu lẫn code), theo dõi trên GitHub Projects.
+2. Tạo nhánh từ `develop`: `docs/<ten-tai-lieu>` cho tài liệu, `feature/FR-xx-ten-ngan` cho code.
+3. Mở **Pull Request vào `develop`** theo mẫu. Tài liệu do nhóm trưởng duyệt; chức năng do phụ trách kiểm thử duyệt.
+4. Không push thẳng vào `main` / `develop`. `main` chỉ được cập nhật tại các mốc Gate (tag `v0.x-Gn`).
 
 ```bash
 git clone https://github.com/xuan-tu-ai/bia-hoi-pos.git
 cd bia-hoi-pos
 git checkout develop
-git checkout -b feature/FR-01-dang-nhap-pin
+git checkout -b docs/nghien-cuu-yeu-cau
 ```
 
 Yêu cầu thay đổi phạm vi: tạo issue theo mẫu **Yêu cầu thay đổi** (xem mục 9 của kế hoạch).

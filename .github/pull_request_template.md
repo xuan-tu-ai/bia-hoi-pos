@@ -8,6 +8,6 @@
 
 ### Checklist
 - [ ] Đạt các tiêu chí nghiệm thu của FR trong SRS
-- [ ] Không lỗi lint
+- [ ] Đã kiểm tra trên bản preview
 - [ ] PR ≤ 400 dòng thay đổi
 - [ ] Đã cập nhật tài liệu / RTM nếu cần
