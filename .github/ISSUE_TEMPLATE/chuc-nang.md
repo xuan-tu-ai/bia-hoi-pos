@@ -5,7 +5,7 @@ title: "[FR-xx] "
 labels: feature
 ---
 
-**Mã yêu cầu:** FR-xx · **Gói WBS:** 1.x.x · **Ưu tiên:** M / S / C
+**Mã việc:** BE-xx / FE-xx · **Mã yêu cầu:** FR-xx · **Hạn:** __/__ · **Ưu tiên:** M / S / C
 
 **Mô tả công việc**
 

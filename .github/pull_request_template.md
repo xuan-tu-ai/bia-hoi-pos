@@ -1,5 +1,5 @@
 **Issue:** Closes #
-**Yêu cầu:** FR-xx
+**Việc:** BE-xx / FE-xx · **Yêu cầu:** FR-xx
 
 ### Thay đổi
 
@@ -10,4 +10,4 @@
 - [ ] Đạt các tiêu chí nghiệm thu của FR trong SRS
 - [ ] Đã kiểm tra trên bản preview
 - [ ] PR ≤ 400 dòng thay đổi
-- [ ] Đã cập nhật tài liệu / RTM nếu cần
+- [ ] Đã cập nhật tài liệu (srs.md / api.md) nếu đổi API hoặc hành vi
