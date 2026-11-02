@@ -1,0 +1,766 @@
+openapi: 3.0.3
+info:
+  title: Bia Hơi Quầy — Backend API
+  version: 0.2.0
+  description: |
+    Hợp đồng API của hệ thống quản lý quầy nhà hàng bia hơi (Nhóm 7). Đây là bản để duyệt và đóng băng ở Gate G2.
+    Test `test/openapi.test.ts` bảo đảm mọi route trong code đều có ở đây và ngược lại.
+
+    **Quy ước chung**
+    - Xác thực: `Authorization: Bearer <token>`, token sống 12 giờ. Máy quầy gửi thêm `x-device-key` khi đăng nhập PIN.
+    - Lỗi luôn có dạng `Error` (`code`, `message` tiếng Việt, `details`).
+    - Tiền là số nguyên VND. Thời điểm là ISO 8601 (UTC); mọi phép tính theo ngày/giờ dùng giờ Việt Nam. Ngày trong query là `YYYY-MM-DD`, `to` tính cả ngày cuối.
+    - `order_line`, `payment`, `bill_print`, `audit_log` chỉ thêm, không có API sửa/xóa (NFR-04).
+    - Realtime (Socket.IO, cùng cổng): sự kiện `table.updated` `{ tableIds }`, `dashboard.updated` `{}`, `tap.updated` `{ tapIds }`.
+
+    **Vai trò**: Q = mọi nhân viên (COUNTER, SHIFT_MANAGER, OWNER) · QL = SHIFT_MANAGER, OWNER · C = chỉ OWNER.
+servers:
+  - url: http://localhost:3000
+    description: Máy chủ demo trong LAN
+security:
+  - bearer: []
+tags:
+  - { name: Auth, description: FR-01, FR-13 }
+  - { name: Bàn, description: FR-02, FR-03, FR-05 }
+  - { name: Order, description: FR-04, FR-06 }
+  - { name: Thanh toán, description: FR-07, FR-08 }
+  - { name: Ca, description: FR-09 }
+  - { name: Kho bia, description: FR-10, FR-14 }
+  - { name: Danh mục, description: FR-11, FR-12, FR-13, FR-15 }
+  - { name: Báo cáo, description: FR-16 đến FR-19 }
+  - { name: Thông báo đẩy, description: FR-20 }
+  - { name: Hệ thống }
+
+paths:
+  /health:
+    get:
+      tags: [Hệ thống]
+      summary: Kiểm tra máy chủ còn sống
+      security: []
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, time: { type: string, format: date-time } } } } } }
+
+  # ---------------- Auth ----------------
+  /auth/pin:
+    post:
+      tags: [Auth]
+      summary: Máy quầy đăng nhập bằng PIN (FR-01)
+      description: Sai 5 lần liên tiếp (theo thiết bị) thì khóa 60 giây.
+      security: []
+      parameters:
+        - { in: header, name: x-device-key, schema: { type: string }, description: Khóa thiết bị; bắt buộc khi máy chủ cấu hình COUNTER_DEVICE_KEYS }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PinBody' } } } }
+      responses:
+        '200': { $ref: '#/components/responses/Login' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { description: Đang bị khóa vì nhập sai quá nhiều, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Web quản trị đăng nhập bằng email + mật khẩu (FR-13)
+      description: Nhân viên quầy (COUNTER) bị từ chối với 403.
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string } } } } }
+      responses:
+        '200': { $ref: '#/components/responses/Login' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /auth/approve:
+    post:
+      tags: [Auth]
+      summary: Quản lý ca nhập PIN để duyệt (FR-06, FR-08) — Q
+      description: Trả về phiếu duyệt dùng một lần, hạn 2 phút, gửi kèm các thao tác hủy/giảm.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PinBody' } } } }
+      responses:
+        '200':
+          description: Phiếu duyệt
+          content:
+            application/json:
+              schema: { type: object, properties: { approvalToken: { type: string }, approver: { $ref: '#/components/schemas/StaffBrief' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Người đang đăng nhập — Q
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/StaffBrief' }, { type: object, properties: { email: { type: string, nullable: true } } }] } } } }
+
+  # ---------------- Bàn ----------------
+  /areas:
+    get:
+      tags: [Bàn]
+      summary: Sơ đồ bàn theo khu (FR-02) — Q
+      parameters:
+        - { in: query, name: include, schema: { type: string, enum: [tables] }, description: '`tables` để kèm bàn, trạng thái màu và tạm tính' }
+      responses:
+        '200': { description: Danh sách khu, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AreaWithTables' } } } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm khu (FR-12) — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NameSort' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' }, '400': { $ref: '#/components/responses/Error' } }
+  /areas/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa khu — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NameSort' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' }, '404': { $ref: '#/components/responses/Error' } }
+    delete:
+      tags: [Danh mục]
+      summary: Xóa khu (chỉ khi không còn bàn) — C
+      responses: { '204': { description: Đã xóa }, '409': { $ref: '#/components/responses/Error' } }
+  /tabs:
+    post:
+      tags: [Bàn]
+      summary: Mở phiên bàn (FR-03) — Q
+      description: Hai máy cùng mở một bàn thì máy sau nhận `alreadyOpen = true` và phiên đang mở.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [tableId], properties: { tableId: { type: integer }, guestCount: { type: integer, minimum: 1, maximum: 200 } } } } }
+      responses:
+        '201': { $ref: '#/components/responses/OpenTab' }
+        '200': { $ref: '#/components/responses/OpenTab' }
+        '404': { $ref: '#/components/responses/Error' }
+  /tabs/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Bàn]
+      summary: Chi tiết phiên bàn — Q
+      responses: { '200': { $ref: '#/components/responses/TabDetail' }, '404': { $ref: '#/components/responses/Error' } }
+  /tabs/{id}/move:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Bàn]
+      summary: Chuyển cả phiên sang bàn trống (FR-05) — Q
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TableTarget' } } } }
+      responses: { '200': { $ref: '#/components/responses/TabDetail' }, '409': { $ref: '#/components/responses/Error' } }
+  /tabs/{id}/merge:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Bàn]
+      summary: Gộp phiên vào bàn đang có khách (FR-05) — Q
+      description: Tổng tiền sau gộp bằng tổng hai phiên; phiên nguồn chuyển trạng thái MERGED.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TableTarget' } } } }
+      responses: { '200': { $ref: '#/components/responses/TabDetail' }, '409': { $ref: '#/components/responses/Error' } }
+
+  # ---------------- Order ----------------
+  /tabs/{id}/rounds:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Order]
+      summary: Gửi lượt gọi món (FR-04) — Q
+      description: |
+        Giá chốt theo giờ gửi (có giờ vàng thì dùng giá giờ vàng). Phiếu tách theo trạm: trạm máy in mạng được gửi ngay
+        (máy in lỗi thì lượt chuyển FAILED, bàn đỏ); phiếu delivery = browser để App quầy tự in rồi báo /print-result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: object, required: [itemId, qty], properties: { itemId: { type: integer }, qty: { type: integer, minimum: 1, maximum: 999 }, note: { type: string, maxLength: 200 } } }
+                note: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: Lượt gọi đã lưu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  round: { type: object, properties: { id: { type: integer }, tabId: { type: integer }, createdAt: { type: string, format: date-time }, printedStatus: { type: string, enum: [PENDING, PRINTED, FAILED] } } }
+                  tickets: { type: array, items: { $ref: '#/components/schemas/PrintTicket' } }
+                  total: { type: integer, description: Tổng phiên sau khi gọi }
+        '409': { $ref: '#/components/responses/Error' }
+  /rounds/{id}/print-result:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Order]
+      summary: App quầy báo kết quả in; FAILED làm bàn chuyển đỏ — Q
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [PRINTED, FAILED] } } } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' }, '404': { $ref: '#/components/responses/Error' } }
+  /rounds/{id}/reprint:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Order]
+      summary: In lại phiếu của lượt gọi — Q
+      requestBody: { required: false, content: { application/json: { schema: { type: object, properties: { stationId: { type: integer, description: Chỉ in lại một trạm } } } } } }
+      responses: { '200': { description: Phiếu in, content: { application/json: { schema: { type: object, properties: { tickets: { type: array, items: { $ref: '#/components/schemas/PrintTicket' } } } } } } } }
+  /lines/{id}/void:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Order]
+      summary: Hủy món đã gửi, cần PIN quản lý (FR-06) — Q
+      description: Tạo dòng VOID âm, không xóa dữ liệu. Hủy trên 200.000 đ thì gửi thông báo đẩy cho chủ quán (FR-20).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/AdjustReason' }, { type: object, required: [qty, approvalToken], properties: { qty: { type: integer, minimum: 1 }, approvalToken: { type: string } } }] } } }
+      responses:
+        '201': { description: Dòng hủy và phiếu báo hủy cho trạm, content: { application/json: { schema: { type: object, properties: { line: { $ref: '#/components/schemas/OrderLine' }, tickets: { type: array, items: { $ref: '#/components/schemas/PrintTicket' } } } } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /lines/{id}/discount:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Order]
+      summary: Giảm giá một món đã gửi, cần PIN quản lý (FR-06) — Q
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/AdjustReason' }, { $ref: '#/components/schemas/DiscountValue' }, { type: object, required: [approvalToken], properties: { approvalToken: { type: string } } }] } } }
+      responses:
+        '201': { description: Dòng giảm giá, content: { application/json: { schema: { type: object, properties: { line: { $ref: '#/components/schemas/OrderLine' } } } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  # ---------------- Thanh toán ----------------
+  /tabs/{id}/provisional:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Thanh toán]
+      summary: In tạm tính (FR-07) — Q
+      description: Không giới hạn số lần; tiêu đề "Tạm tính — lần in N — HH:mm".
+      responses: { '200': { $ref: '#/components/responses/Bill' }, '409': { $ref: '#/components/responses/Error' } }
+  /tabs/{id}/vietqr:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Thanh toán]
+      summary: Chuỗi VietQR để vẽ mã QR chuyển khoản (FR-08) — Q
+      parameters:
+        - { in: query, name: amount, schema: { type: integer, minimum: 1 }, description: Phần chuyển khoản khi trả kết hợp; mặc định là toàn bộ }
+      responses:
+        '200':
+          description: Chuỗi EMVCo kèm số tiền và nội dung BH<mã hóa đơn>
+          content: { application/json: { schema: { type: object, properties: { payload: { type: string }, amount: { type: integer }, content: { type: string, example: BH000142 }, bankBin: { type: string }, accountNo: { type: string }, accountName: { type: string } } } } }
+        '503': { $ref: '#/components/responses/Error' }
+  /tabs/{id}/discount:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Thanh toán]
+      summary: Giảm giá cả hóa đơn, cần PIN quản lý (FR-08) — Q
+      requestBody:
+        required: true
+        content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/AdjustReason' }, { $ref: '#/components/schemas/DiscountValue' }, { type: object, required: [approvalToken], properties: { approvalToken: { type: string } } }] } } }
+      responses:
+        '201': { description: Khoản giảm và tổng mới, content: { application/json: { schema: { type: object, properties: { discount: { type: object }, total: { type: integer } } } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /tabs/{id}/pay:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Thanh toán]
+      summary: Thanh toán, đóng phiên, in hóa đơn (FR-08) — Q
+      description: Tổng các `amount` phải đúng bằng số phải trả. Tiền khách đưa ghi ở `tendered` (chỉ tiền mặt).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payments]
+              properties:
+                payments:
+                  type: array
+                  maxItems: 4
+                  items: { type: object, required: [method, amount], properties: { method: { type: string, enum: [CASH, TRANSFER] }, amount: { type: integer, minimum: 1 }, tendered: { type: integer, minimum: 1 } } }
+      responses: { '200': { $ref: '#/components/responses/Bill' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /tabs/{id}/bill:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Thanh toán]
+      summary: In lại hóa đơn đã thanh toán — Q
+      responses: { '200': { $ref: '#/components/responses/Bill' }, '409': { $ref: '#/components/responses/Error' } }
+
+  # ---------------- Ca ----------------
+  /shifts/open:
+    post:
+      tags: [Ca]
+      summary: Mở ca, nhập tiền đầu ca (FR-09) — Q
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [openingCash], properties: { openingCash: { type: integer, minimum: 0 } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Object' }, '409': { $ref: '#/components/responses/Error' } }
+  /shifts/current:
+    get:
+      tags: [Ca]
+      summary: Ca đang mở và số liệu tạm tính — Q
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { shift: { type: object, nullable: true }, summary: { $ref: '#/components/schemas/ShiftSummary' } } } } } } }
+  /shifts/{id}/close:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Ca]
+      summary: Đóng ca, nhập tiền mặt thực đếm (FR-09) — QL
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [countedCash], properties: { countedCash: { type: integer, minimum: 0 }, note: { type: string, maxLength: 300 } } } } } }
+      responses: { '200': { description: Báo cáo đóng ca, content: { application/json: { schema: { type: object, properties: { shift: { type: object }, summary: { $ref: '#/components/schemas/ShiftSummary' } } } } } }, '409': { $ref: '#/components/responses/Error' } }
+  /shifts:
+    get:
+      tags: [Ca]
+      summary: Danh sách ca trong khoảng ngày (tối đa 92 ngày), kèm tổng hợp — QL
+      parameters: [{ $ref: '#/components/parameters/From' }, { $ref: '#/components/parameters/To' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { type: object, properties: { summary: { $ref: '#/components/schemas/ShiftSummary' } } } } } } } }
+  /shifts/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Ca]
+      summary: Một ca và tổng hợp của nó — QL
+      responses: { '200': { $ref: '#/components/responses/Object' }, '404': { $ref: '#/components/responses/Error' } }
+
+  # ---------------- Kho bia ----------------
+  /kegs:
+    get:
+      tags: [Kho bia]
+      summary: Danh sách keg theo trạng thái (FR-14) — Q
+      parameters: [{ in: query, name: status, schema: { type: string, enum: [IN_STOCK, TAPPED, EMPTY] } }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Keg' } } } } } }
+    post:
+      tags: [Kho bia]
+      summary: Nhập kho nhiều keg cùng lúc (FR-14) — C
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [beerName, capacityMl, cost, quantity], properties: { beerName: { type: string }, capacityMl: { type: integer, minimum: 1000, maximum: 200000 }, cost: { type: integer, minimum: 0 }, receivedAt: { type: string, format: date-time }, quantity: { type: integer, minimum: 1, maximum: 50 } } } } }
+      responses: { '201': { description: Các keg vừa tạo, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Keg' } } } } } }
+  /taps:
+    get:
+      tags: [Kho bia]
+      summary: Vòi bia và keg đang gắn (FR-10) — Q
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Tap' } } } } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm vòi — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NameSort' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' } }
+  /taps/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa vòi — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NameSort' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+    delete:
+      tags: [Danh mục]
+      summary: Xóa vòi — C
+      responses: { '204': { description: Đã xóa }, '409': { $ref: '#/components/responses/Error' } }
+  /taps/{id}/change-keg:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Kho bia]
+      summary: Thay keg; keg mới phải đang Trong kho, keg cũ chuyển Đã hết (FR-10) — Q
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [kegId], properties: { kegId: { type: integer } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { oldKegId: { type: integer, nullable: true }, newKegId: { type: integer } } } } } }, '409': { $ref: '#/components/responses/Error' } }
+
+  # ---------------- Danh mục ----------------
+  /menu-groups:
+    get: { tags: [Danh mục], summary: Nhóm món — Q, responses: { '200': { $ref: '#/components/responses/Array' } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm nhóm món (FR-11) — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NameSort' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' } }
+  /menu-groups/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa nhóm món — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NameSort' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+    delete: { tags: [Danh mục], summary: Xóa nhóm món (chỉ khi rỗng) — C, responses: { '204': { description: Đã xóa }, '409': { $ref: '#/components/responses/Error' } } }
+  /menu-items:
+    get:
+      tags: [Danh mục]
+      summary: Món (FR-11) — Q
+      parameters: [{ in: query, name: includeInactive, schema: { type: string, enum: ['true', 'false'] } }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MenuItem' } } } } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm món — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MenuItemInput' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' }, '409': { $ref: '#/components/responses/Error' } }
+  /menu-items/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa món (đổi giá không ảnh hưởng lượt đã gửi) — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MenuItemInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+    delete: { tags: [Danh mục], summary: Xóa mềm món — C, responses: { '204': { description: Đã xóa } } }
+  /menu-items/{id}/image:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [Danh mục]
+      summary: Tải ảnh món lên (FR-11), thay ảnh cũ — C
+      description: Gửi thẳng tệp ảnh (không phải multipart). Nhận JPG, PNG, WebP tối đa 2 MB; định dạng xét theo nội dung tệp. Web quản trị thu nhỏ ảnh còn 640px trước khi gửi.
+      requestBody:
+        required: true
+        content:
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          image/webp: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Món sau khi đổi ảnh, content: { application/json: { schema: { $ref: '#/components/schemas/MenuItem' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '413': { description: Ảnh lớn hơn 2 MB }
+    delete:
+      tags: [Danh mục]
+      summary: Bỏ ảnh món — C
+      responses: { '200': { description: Món sau khi bỏ ảnh, content: { application/json: { schema: { $ref: '#/components/schemas/MenuItem' } } } } }
+  /uploads/{file}:
+    get:
+      tags: [Danh mục]
+      summary: Tệp ảnh món (không cần đăng nhập, lưu đệm lâu vì mỗi lần tải lên có tên mới)
+      security: []
+      parameters: [{ in: path, name: file, required: true, schema: { type: string, example: mon-12-a1b2c3d4.jpg } }]
+      responses:
+        '200': { description: Ảnh, content: { image/jpeg: { schema: { type: string, format: binary } }, image/png: { schema: { type: string, format: binary } }, image/webp: { schema: { type: string, format: binary } } } }
+        '404': { $ref: '#/components/responses/Error' }
+  /print-stations:
+    get: { tags: [Danh mục], summary: Trạm in — Q, responses: { '200': { $ref: '#/components/responses/Array' } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm trạm in (FR-11) — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StationInput' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' } }
+  /print-stations/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa trạm in — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StationInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+    delete: { tags: [Danh mục], summary: Xóa trạm in — C, responses: { '204': { description: Đã xóa }, '409': { $ref: '#/components/responses/Error' } } }
+  /print-stations/{id}/test:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Danh mục]
+      summary: In thử một phiếu tới máy in mạng của trạm — C
+      description: Chỉ với trạm connection = NETWORK. Máy in không phản hồi thì 502 PRINTER_UNREACHABLE.
+      responses:
+        '200': { description: Đã gửi tới máy in, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+  /tables:
+    get: { tags: [Danh mục], summary: Bàn (FR-12) — Q, responses: { '200': { $ref: '#/components/responses/Array' } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm bàn — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TableInput' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' }, '409': { $ref: '#/components/responses/Error' } }
+  /tables/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa bàn — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TableInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+    delete:
+      tags: [Danh mục]
+      summary: Xóa bàn; bàn đang có phiên mở thì 409 TABLE_HAS_OPEN_TAB (FR-12) — C
+      responses: { '204': { description: Đã xóa }, '409': { $ref: '#/components/responses/Error' } }
+  /staff:
+    get: { tags: [Danh mục], summary: Nhân viên (không trả mã băm) — C, responses: { '200': { $ref: '#/components/responses/Array' } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm nhân viên; PIN không trùng (FR-13) — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StaffInput' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' }, '409': { $ref: '#/components/responses/Error' } }
+  /staff/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa nhân viên; không xóa, dùng active = false — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StaffInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' }, '400': { $ref: '#/components/responses/Error' } }
+  /happy-hours:
+    get: { tags: [Danh mục], summary: Khung giờ vàng (FR-15) — Q, responses: { '200': { $ref: '#/components/responses/Array' } } }
+    post:
+      tags: [Danh mục]
+      summary: Thêm khung giờ vàng — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/HappyHourInput' } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' } }
+  /happy-hours/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Danh mục]
+      summary: Sửa khung giờ vàng (gửi prices thì thay toàn bộ bảng giá) — C
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/HappyHourInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+    delete: { tags: [Danh mục], summary: Xóa khung (đã từng áp dụng thì chỉ tắt được) — C, responses: { '204': { description: Đã xóa }, '409': { $ref: '#/components/responses/Error' } } }
+
+  # ---------------- Báo cáo ----------------
+  /reports/today:
+    get:
+      tags: [Báo cáo]
+      summary: Dashboard hôm nay, so với cùng giờ hôm qua (FR-16) — QL
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asOf: { type: string, format: date-time }
+                  revenue: { type: integer }
+                  openTotal: { type: integer }
+                  occupiedTables: { type: integer }
+                  totalTables: { type: integer }
+                  billCount: { type: integer }
+                  yesterday: { type: object, properties: { revenue: { type: integer }, billCount: { type: integer } } }
+  /reports/keg-loss:
+    get:
+      tags: [Báo cáo]
+      summary: Hao hụt các keg đã hết (FR-17) — QL
+      parameters: [{ $ref: '#/components/parameters/From' }, { $ref: '#/components/parameters/To' }, { in: query, name: threshold, schema: { type: number, minimum: 0, maximum: 100 }, description: Ngưỡng %, mặc định 5 }]
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+  /reports/voids:
+    get:
+      tags: [Báo cáo]
+      summary: Nhật ký hủy/giảm món và giảm giá hóa đơn (FR-18), tối đa 31 ngày — QL
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { in: query, name: staffId, schema: { type: integer } }
+        - { in: query, name: approverId, schema: { type: integer } }
+        - { in: query, name: reason, schema: { $ref: '#/components/schemas/Reason' } }
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+  /reports/top-items:
+    get:
+      tags: [Báo cáo]
+      summary: Top món theo số lượng hoặc doanh thu (FR-19), tối đa 31 ngày — QL
+      parameters: [{ $ref: '#/components/parameters/From' }, { $ref: '#/components/parameters/To' }, { in: query, name: by, schema: { type: string, enum: [qty, revenue] } }, { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50 } }]
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+  /reports/hourly:
+    get:
+      tags: [Báo cáo]
+      summary: Doanh thu theo giờ trong ngày (FR-19), tối đa 31 ngày — QL
+      parameters: [{ $ref: '#/components/parameters/From' }, { $ref: '#/components/parameters/To' }]
+      responses: { '200': { $ref: '#/components/responses/Object' } }
+
+  # ---------------- Thông báo đẩy ----------------
+  /push/public-key:
+    get:
+      tags: [Thông báo đẩy]
+      summary: Khóa VAPID công khai, ngưỡng báo và số thiết bị đã bật (FR-20) — C
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { publicKey: { type: string }, threshold: { type: integer }, devices: { type: integer } } } } } } }
+  /push/subscribe:
+    post:
+      tags: [Thông báo đẩy]
+      summary: Đăng ký thiết bị nhận thông báo (PushSubscription của trình duyệt) — C
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [endpoint, keys], properties: { endpoint: { type: string, format: uri }, keys: { type: object, required: [p256dh, auth], properties: { p256dh: { type: string }, auth: { type: string } } } } } } } }
+      responses: { '201': { $ref: '#/components/responses/Created' } }
+    delete:
+      tags: [Thông báo đẩy]
+      summary: Hủy đăng ký thiết bị — C
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [endpoint], properties: { endpoint: { type: string, format: uri } } } } } }
+      responses: { '204': { description: Đã hủy } }
+  /push/test:
+    post:
+      tags: [Thông báo đẩy]
+      summary: Gửi thông báo thử tới thiết bị của chính mình — C
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { sent: { type: integer }, removed: { type: integer } } } } } }, '400': { $ref: '#/components/responses/Error' } }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    Id: { in: path, name: id, required: true, schema: { type: integer, minimum: 1 } }
+    From: { in: query, name: from, schema: { type: string, format: date, example: '2026-10-18' }, description: Từ ngày (giờ Việt Nam), mặc định hôm nay }
+    To: { in: query, name: to, schema: { type: string, format: date, example: '2026-10-24' }, description: Đến ngày, tính cả ngày cuối }
+  responses:
+    Error: { description: Lỗi, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Created: { description: Đã tạo, content: { application/json: { schema: { type: object, properties: { id: { type: integer } } } } } }
+    Object: { description: OK, content: { application/json: { schema: { type: object } } } }
+    Array: { description: OK, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    Login:
+      description: Đăng nhập thành công
+      content: { application/json: { schema: { type: object, properties: { token: { type: string }, staff: { $ref: '#/components/schemas/StaffBrief' } } } } }
+    OpenTab:
+      description: Phiên bàn (201 khi vừa mở; 200 với alreadyOpen = true khi máy khác đã mở trước)
+      content: { application/json: { schema: { type: object, properties: { alreadyOpen: { type: boolean }, message: { type: string }, tab: { $ref: '#/components/schemas/TabDetail' } } } } }
+    TabDetail: { description: Chi tiết phiên bàn, content: { application/json: { schema: { $ref: '#/components/schemas/TabDetail' } } } }
+    Bill: { description: Dữ liệu để in hóa đơn, content: { application/json: { schema: { $ref: '#/components/schemas/PrintedBill' } } } }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: TAB_NOT_OPEN }
+        message: { type: string, example: Phiên bàn đã thanh toán }
+        details: {}
+    PinBody: { type: object, required: [pin], properties: { pin: { type: string, pattern: '^\d{4,6}$' } } }
+    StaffBrief: { type: object, properties: { id: { type: integer }, name: { type: string }, role: { type: string, enum: [COUNTER, SHIFT_MANAGER, OWNER] } } }
+    NameSort: { type: object, required: [name], properties: { name: { type: string, maxLength: 100 }, sortOrder: { type: integer, minimum: 0 } } }
+    TableTarget: { type: object, required: [tableId], properties: { tableId: { type: integer } } }
+    Reason: { type: string, enum: [KHACH_DOI_Y, BEP_HET_MON, NHAP_NHAM, MON_LOI, KHAC] }
+    AdjustReason:
+      type: object
+      required: [reason]
+      description: Lý do KHAC bắt buộc có note
+      properties: { reason: { $ref: '#/components/schemas/Reason' }, note: { type: string, maxLength: 200 } }
+    DiscountValue:
+      type: object
+      description: Đúng một trong hai — phần trăm hoặc số tiền
+      properties: { percent: { type: integer, minimum: 1, maximum: 100 }, amount: { type: integer, minimum: 1 } }
+    AreaWithTables:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        tables:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              code: { type: string }
+              status: { type: string, enum: [EMPTY, OPEN, PROVISIONAL, PRINT_ERROR], description: 'Màu FR-02: xám, xanh, vàng, đỏ' }
+              tab: { type: object, nullable: true, properties: { id: { type: integer }, openedAt: { type: string, format: date-time }, guestCount: { type: integer, nullable: true }, total: { type: integer } } }
+    OrderLine:
+      type: object
+      properties:
+        id: { type: integer }
+        itemName: { type: string }
+        qty: { type: integer, description: Âm với dòng VOID }
+        unitPrice: { type: integer, description: Âm với dòng DISCOUNT }
+        lineType: { type: string, enum: [NORMAL, VOID, DISCOUNT] }
+        refLineId: { type: integer, nullable: true }
+        reason: { $ref: '#/components/schemas/Reason' }
+        createdAt: { type: string, format: date-time }
+    TabDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        billCode: { type: string, example: BH000142 }
+        status: { type: string, enum: [OPEN, PAID, MERGED] }
+        tableStatus: { type: string, nullable: true, enum: [OPEN, PROVISIONAL, PRINT_ERROR] }
+        table: { type: object, properties: { id: { type: integer }, code: { type: string }, areaName: { type: string } } }
+        total: { type: integer }
+        paidAmount: { type: integer }
+        provisionalCount: { type: integer }
+        rounds:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              printedStatus: { type: string, enum: [PENDING, PRINTED, FAILED] }
+              lines:
+                type: array
+                items:
+                  allOf:
+                    - { $ref: '#/components/schemas/OrderLine' }
+                    - type: object
+                      properties:
+                        state: { type: object, description: Chỉ có ở dòng NORMAL, properties: { remainingQty: { type: integer }, discounted: { type: integer }, netAmount: { type: integer } } }
+        billDiscounts: { type: array, items: { type: object } }
+        payments: { type: array, items: { type: object } }
+    PrintTicket:
+      type: object
+      description: Một phiếu cho một trạm in. printerName = null thì in ra PDF (NFR-08).
+      properties:
+        title: { type: string, example: PHIẾU GỌI MÓN }
+        stationName: { type: string }
+        printerName: { type: string, nullable: true }
+        roundId: { type: integer }
+        tableCode: { type: string }
+        time: { type: string, example: '19:42' }
+        staffName: { type: string }
+        lines: { type: array, items: { type: object, properties: { name: { type: string }, qty: { type: integer }, note: { type: string, nullable: true } } } }
+        delivery: { type: string, enum: [network, browser], description: 'network: backend đã gửi tới máy in mạng của trạm; browser: App quầy phải tự in' }
+        printed: { type: boolean, nullable: true, description: 'true/false: kết quả gửi máy in mạng; null: App quầy tự in' }
+        error: { type: string, nullable: true, example: 'Máy in 192.168.1.50:9100 không phản hồi' }
+    PrintedBill:
+      type: object
+      properties:
+        kind: { type: string, enum: [PROVISIONAL, FINAL] }
+        title: { type: string, example: Tạm tính — lần in 2 — 21:05 }
+        billCode: { type: string }
+        tableCode: { type: string }
+        rows: { type: array, items: { type: object, properties: { name: { type: string }, qty: { type: integer }, unitPrice: { type: integer }, amount: { type: integer } } } }
+        adjustments: { type: array, items: { type: object, properties: { label: { type: string }, amount: { type: integer } } } }
+        total: { type: integer }
+        payments: { type: array, items: { type: object } }
+        change: { type: integer, description: Tiền thừa (chỉ với FINAL) }
+    ShiftSummary:
+      type: object
+      properties:
+        cashTotal: { type: integer }
+        transferTotal: { type: integer }
+        revenue: { type: integer }
+        billCount: { type: integer }
+        expectedCash: { type: integer }
+        countedCash: { type: integer, nullable: true }
+        difference: { type: integer, nullable: true }
+    Keg:
+      type: object
+      properties:
+        id: { type: integer }
+        beerName: { type: string }
+        capacityMl: { type: integer }
+        cost: { type: integer }
+        status: { type: string, enum: [IN_STOCK, TAPPED, EMPTY] }
+        soldMl: { type: integer }
+        tappedAt: { type: string, format: date-time, nullable: true }
+        emptiedAt: { type: string, format: date-time, nullable: true }
+    Tap: { type: object, properties: { id: { type: integer }, name: { type: string }, currentKeg: { allOf: [{ $ref: '#/components/schemas/Keg' }], nullable: true } } }
+    MenuItem:
+      type: object
+      properties:
+        id: { type: integer }
+        groupId: { type: integer }
+        name: { type: string }
+        shortcut: { type: string, nullable: true }
+        price: { type: integer }
+        unit: { type: string }
+        stationId: { type: integer, nullable: true }
+        beerVolumeMl: { type: integer, nullable: true }
+        defaultTapId: { type: integer, nullable: true }
+        available: { type: boolean }
+        imageFile: { type: string, nullable: true, description: 'Tên tệp ảnh; địa chỉ ảnh là /uploads/{imageFile}' }
+    MenuItemInput:
+      type: object
+      properties:
+        groupId: { type: integer }
+        name: { type: string }
+        shortcut: { type: string, nullable: true, maxLength: 10 }
+        price: { type: integer, minimum: 1 }
+        unit: { type: string }
+        stationId: { type: integer, nullable: true }
+        beerVolumeMl: { type: integer, nullable: true, minimum: 50, maximum: 20000 }
+        defaultTapId: { type: integer, nullable: true }
+        available: { type: boolean }
+        sortOrder: { type: integer }
+    StationInput:
+      type: object
+      properties:
+        name: { type: string }
+        printerName: { type: string, description: Tên máy in (ghi chú cho người quản lý) }
+        connection: { type: string, enum: [BROWSER, NETWORK], description: 'BROWSER: App quầy in ra máy in mặc định; NETWORK: backend gửi ESC/POS tới host:port' }
+        host: { type: string, nullable: true, example: 192.168.1.50 }
+        port: { type: integer, minimum: 1, maximum: 65535, example: 9100 }
+    TableInput: { type: object, properties: { areaId: { type: integer }, code: { type: string, maxLength: 20 }, sortOrder: { type: integer } } }
+    StaffInput:
+      type: object
+      properties:
+        name: { type: string }
+        role: { type: string, enum: [COUNTER, SHIFT_MANAGER, OWNER] }
+        pin: { type: string, pattern: '^\d{4,6}$' }
+        email: { type: string, format: email, nullable: true, description: Không dùng cho COUNTER }
+        password: { type: string, minLength: 8 }
+        active: { type: boolean }
+    HappyHourInput:
+      type: object
+      properties:
+        name: { type: string }
+        daysOfWeek: { type: array, items: { type: integer, minimum: 0, maximum: 6 }, description: 0 = Chủ nhật }
+        start: { type: string, example: '16:00' }
+        end: { type: string, example: '18:00', description: Sớm hơn start nghĩa là qua nửa đêm }
+        active: { type: boolean }
+        prices: { type: array, items: { type: object, required: [itemId, price], properties: { itemId: { type: integer }, price: { type: integer, minimum: 1 } } } }

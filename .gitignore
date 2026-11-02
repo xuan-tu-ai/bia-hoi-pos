@@ -28,3 +28,9 @@ docs/qd-*.pdf
 
 # Local drafts / exports
 .plans/
+
+# Runtime data & test output
+.pgdata/
+printouts/
+test-results/
+playwright-report/

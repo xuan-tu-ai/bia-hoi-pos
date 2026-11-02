@@ -1,0 +1,66 @@
+# Triển khai demo (SRS 6.1): web + API + PostgreSQL trên một laptop trong mạng LAN.
+#   docker compose up -d --build
+#   docker compose exec api npx prisma db seed     # nạp dữ liệu demo (xóa dữ liệu cũ)
+# Web quản trị / PWA: http://<ip laptop>:8080   App quầy: http://<ip laptop>:8080/quay/   API: :3000 (/docs)
+# HTTPS cho điện thoại (để cài PWA và nhận thông báo đẩy): docker compose --profile tunnel up -d
+#   rồi xem địa chỉ https://…trycloudflare.com bằng: docker compose logs tunnel
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: biahoi
+      POSTGRES_PASSWORD: biahoi
+      POSTGRES_DB: biahoi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biahoi"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://biahoi:biahoi@db:5432/biahoi
+      JWT_SECRET: ${JWT_SECRET:-doi-chuoi-nay-truoc-khi-demo}
+      COUNTER_DEVICE_KEYS: ${COUNTER_DEVICE_KEYS:-}
+      # nginx (service web) gửi IP thật của máy quầy; khóa PIN tính theo từng máy chứ không theo nginx
+      TRUST_PROXY: uniquelocal
+      BANK_BIN: ${BANK_BIN:-970436}
+      BANK_ACCOUNT_NO: ${BANK_ACCOUNT_NO:-0011001234567}
+      BANK_ACCOUNT_NAME: ${BANK_ACCOUNT_NAME:-QUAN BIA HOI DEMO}
+    ports:
+      # Chỉ mở cho chính máy chủ (tài liệu /docs, debug). Máy quầy đi qua cổng 8080.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - uploads:/app/apps/api/uploads   # ảnh món chủ quán tải lên
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  # Tùy chọn: địa chỉ HTTPS công khai tạm thời qua Cloudflare Tunnel (không cần tài khoản).
+  # CẢNH BÁO: ai có địa chỉ đều mở được trang đăng nhập; chỉ bật khi demo và tắt ngay sau đó.
+  tunnel:
+    image: cloudflare/cloudflared:2024.12.2
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://web:80
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  uploads:
