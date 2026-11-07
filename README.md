@@ -15,6 +15,7 @@ Một web app có phân quyền (Nhân viên quầy, Quản lý ca, Chủ quán)
 ## Tài liệu
 
 - [Đặc tả yêu cầu (SRS) — tài liệu chính](docs/srs.md)
+- [Đặc tả API chi tiết](docs/api.md)
 - [Kế hoạch quản lý dự án](docs/ke-hoach-quan-ly-du-an.md)
 - [Hướng phát triển (ngoài phạm vi)](docs/tam-nhin.md)
 - Biên bản họp: `docs/meetings/` · Báo cáo tuần: `docs/reports/`
