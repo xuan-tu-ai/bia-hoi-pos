@@ -1,8 +1,0 @@
-**/node_modules
-**/dist
-**/.pgdata
-**/.env
-*.log
-*.pdf
-**/uploads
-**/printouts
