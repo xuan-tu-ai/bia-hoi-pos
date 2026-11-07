@@ -1,0 +1,106 @@
+# Thử nhanh API (VS Code extension "REST Client"). Chạy từ trên xuống.
+@api = http://localhost:3000/api
+
+### Đăng nhập nhân viên quầy
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "lan@biahoi.vn", "password": "123456" }
+
+###
+@token = {{login.response.body.token}}
+
+### Người đang đăng nhập
+GET {{api}}/auth/me
+Authorization: Bearer {{token}}
+
+### Sơ đồ bàn
+GET {{api}}/tabs/summary
+Authorization: Bearer {{token}}
+
+### Khu kèm bàn
+GET {{api}}/areas?include=tables
+Authorization: Bearer {{token}}
+
+### Thực đơn cho màn gọi món
+GET {{api}}/menu
+Authorization: Bearer {{token}}
+
+### Mở bàn (đổi tableId thành một bàn đang trống)
+# @name open
+POST {{api}}/tabs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "tableId": 15, "guestCount": 4 }
+
+###
+@tabId = {{open.response.body.id}}
+
+### Gửi lượt gọi (menuItemId xem ở GET /menu)
+POST {{api}}/tabs/{{tabId}}/rounds
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "items": [ { "menuItemId": 1, "qty": 4 }, { "menuItemId": 9, "qty": 1, "note": "ít cay" } ] }
+
+### Chi tiết phiên
+GET {{api}}/tabs/{{tabId}}
+Authorization: Bearer {{token}}
+
+### Hủy món (thay 1 bằng id dòng món; nhân viên quầy cần PIN 1234)
+POST {{api}}/order-lines/1/void
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "qty": 1, "reason": "CUSTOMER_CHANGED_MIND", "approverPin": "1234" }
+
+### In tạm tính
+POST {{api}}/tabs/{{tabId}}/provisional
+Authorization: Bearer {{token}}
+
+### VietQR
+GET {{api}}/tabs/{{tabId}}/vietqr
+Authorization: Bearer {{token}}
+
+### Thanh toán
+POST {{api}}/tabs/{{tabId}}/pay
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "payments": [ { "method": "CASH", "amount": 500000 } ] }
+
+### Vòi bia
+GET {{api}}/taps
+Authorization: Bearer {{token}}
+
+### ---------- Chủ quán ----------
+# @name owner
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "hoa@biahoi.vn", "password": "123456" }
+
+###
+@owner = {{owner.response.body.token}}
+
+### Tổng quan hôm nay
+GET {{api}}/reports/today
+Authorization: Bearer {{owner}}
+
+### Hao hụt keg
+GET {{api}}/reports/keg-loss?threshold=5
+Authorization: Bearer {{owner}}
+
+### Nhật ký hủy/giảm
+GET {{api}}/reports/voids
+Authorization: Bearer {{owner}}
+
+### Món bán chạy
+GET {{api}}/reports/top-items?by=revenue
+Authorization: Bearer {{owner}}
+
+### Nhân viên (nhân viên quầy gọi sẽ nhận 403)
+GET {{api}}/staff
+Authorization: Bearer {{owner}}
