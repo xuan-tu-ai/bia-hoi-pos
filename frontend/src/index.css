@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 24 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 10%;
+    --primary: 32 95% 38%;
+    --primary-foreground: 48 100% 97%;
+    --secondary: 40 20% 93%;
+    --secondary-foreground: 24 10% 15%;
+    --muted: 40 15% 94%;
+    --muted-foreground: 25 6% 42%;
+    --accent: 43 70% 92%;
+    --accent-foreground: 24 10% 15%;
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 35 15% 86%;
+    --input: 35 15% 82%;
+    --ring: 32 95% 38%;
+    --radius: 0.6rem;
+
+    --table-empty: 220 9% 92%;
+    --table-occupied: 142 60% 38%;
+    --table-provisional: 45 96% 52%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'tnum' 1;
+  }
+}
+
+/* In (FR-04, FR-07, FR-08)
+   Nội dung cần in được đưa vào <div class="print-root"> nằm ngay dưới <body> (components/print/PrintPortal).
+   Khi in chỉ hiện phần đó, khổ giấy 80 mm; mỗi phiếu một trang. */
+@media screen {
+  .print-root {
+    display: none;
+  }
+}
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 3mm;
+  }
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+  .print-root {
+    display: block;
+    width: 74mm;
+    color: #000;
+  }
+  .print-root .paper {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  .print-root .paper + .paper {
+    break-before: page;
+  }
+}
