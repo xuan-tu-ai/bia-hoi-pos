@@ -1,6 +1,7 @@
 # Đặc tả API chi tiết
 
-> Mở rộng từ SRS v0.2 mục 7. Người soạn: Phí Việt Hiếu (backend).
+> Việc BE-D2 (WBS 1.3.2), hạn 10/11/2026. Mở rộng từ SRS v0.2 mục 7. Người soạn: Phí Việt Hiếu (backend).
+> Bảng và cột nhắc tới ở đây: xem [`thiet-ke-csdl.md`](thiet-ke-csdl.md). Danh sách đầy đủ request của mọi API: mục 4.
 > Đường dẫn và quyền **giữ nguyên** như bảng SRS 7.2. Tài liệu này ghi thêm những chỗ SRS chưa nói rõ: dạng response, mã lỗi bổ sung, quy tắc tính toán.
 > Muốn đổi API: thống nhất backend–frontend rồi sửa file này trước khi code.
 
@@ -123,7 +124,7 @@ với `expectedCash = openingCash + cashSales`, `difference = countedCash − ex
 - `GET /reports/today` — `revenue`, `openAmount`, `occupiedTables` (+`total`), `bills`: mỗi cái `{ value, yesterday, changePercent }` (so với cùng giờ hôm qua; `null` nếu hôm qua = 0). `hourly`: 24 phần tử `{ hour, today, yesterday }`. `paymentSplit: { cash, transfer }`.
 - `GET /reports/keg-loss?from=&to=&threshold=` — như SRS 7.3, mỗi keg thêm `lossAmount`, `durationMinutes`. Mặc định 30 ngày gần nhất, ngưỡng 5%. `lossAmount = lossMl × cost / capacityMl`.
 - `GET /reports/voids?from=&to=&staffId=&approverId=&reason=&type=` — `{ count, totalAmount, voidAmount, discountAmount, items, people }`. `type`: `VOID` · `DISCOUNT` · `BILL_DISCOUNT`. `people` là danh sách `{ id, fullName }` cho bộ lọc. Mặc định 7 ngày gần nhất.
-- `GET /reports/top-items?from=&to=&by=qty|revenue` — `{ items: [{ menuItemId, name, qty, revenue }] }`, top 10, chỉ hóa đơn đã thanh toán.
+- `GET /reports/top-items?from=&to=&by=qty|revenue&limit=` — `{ items: [{ menuItemId, name, qty, revenue }] }`, mặc định top 10 (`limit` 1–50), chỉ hóa đơn đã thanh toán.
 - `GET /reports/hourly?from=&to=` — `{ days, hours: [{ hour, revenue, bills }] }`.
 
 ### Quản trị
@@ -133,3 +134,113 @@ với `expectedCash = openingCash + cashSales`, `difference = countedCash − ex
 - `GET /menu-items?groupId=&q=&includeInactive=true` — kèm `group`, `station`, `defaultTap`. Món bia hơi (`beerVolumeMl`) bắt buộc `defaultTapId`. Mã tắt chỉ chữ thường không dấu & số.
 - `GET /staff` — không bao giờ trả mật khẩu/PIN; có `hasPin`. `PATCH /staff/:id`: `password` bỏ trống = giữ nguyên; `pin: null` = xóa PIN. Vai trò `COUNTER` luôn không có PIN.
 - `GET /happy-hours` — mỗi khung có `activeNow` và `prices: [{ menuItemId, name, regularPrice, price }]`. `PATCH` có `prices` thì thay toàn bộ danh sách giá.
+
+## 4. Danh sách đầy đủ: quyền, request, kết quả
+
+Quyền: C = `COUNTER`, M = `SHIFT_MANAGER`, O = `OWNER`. Ký hiệu `?` = không bắt buộc. Mọi API (trừ đăng nhập) có thể trả `401 UNAUTHORIZED`, `403 FORBIDDEN`, `400 VALIDATION_ERROR`; API có `:id` có thể trả `404 NOT_FOUND`. Cột **Lỗi riêng** chỉ ghi các lỗi khác ngoài những lỗi này.
+
+Kiểu dữ liệu dùng chung: **tiền** = số nguyên ≥ 0; **PIN** = chuỗi 4–6 chữ số; **ngày** = `YYYY-MM-DD`; **giờ** = `HH:mm`; **lý do** = `CUSTOMER_CHANGED_MIND` · `OUT_OF_STOCK` · `WRONG_ENTRY` · `DEFECTIVE` · `OTHER` (`OTHER` bắt buộc có `note`).
+
+### 4.1 Đăng nhập
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `POST /auth/login` | Không cần token | `{ email, password }` — email tự chuyển chữ thường | 200 `{ token, user }`, token hết hạn sau 12 giờ | 401 `INVALID_CREDENTIALS`, 403 `ACCOUNT_LOCKED` |
+| `GET /auth/me` | C M O | — | 200 `{ id, fullName, email, role }` | |
+
+### 4.2 Khu & bàn
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /areas?include=tables` | C M O | `include?` = `tables` | 200 mảng khu (kèm bàn nếu có `include`) | |
+| `POST /areas` | O | `{ name (1–50 ký tự), sortOrder? }` | 201 khu vừa tạo | |
+| `PATCH /areas/:id` | O | như POST, mọi trường `?` | 200 khu | |
+| `DELETE /areas/:id` | O | — | 204 | 409 `AREA_NOT_EMPTY` |
+| `POST /tables` | O | `{ areaId, code (1–10 ký tự), sortOrder? }` | 201 bàn | 409 `DUPLICATE_TABLE_CODE` |
+| `PATCH /tables/:id` | O | `{ areaId?, code?, sortOrder?, active? }` | 200 bàn | 409 `DUPLICATE_TABLE_CODE`, `TABLE_NOT_EMPTY` (ẩn bàn đang có khách) |
+| `DELETE /tables/:id` | O | — | 204 (bàn có lịch sử thì chỉ ẩn) | 409 `TABLE_NOT_EMPTY` |
+
+### 4.3 Phiên bàn
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /tabs/summary` | C M O | — | 200, xem SRS 7.3 | |
+| `POST /tabs` | C M O | `{ tableId, guestCount? (1–200) }` | 201 phiên | 409 `TABLE_ALREADY_OPEN` (`details.tabId`) |
+| `GET /tabs/:id` | C M O | — | 200, xem mục 3 | |
+| `POST /tabs/:id/rounds` | C M O | `{ items: [{ menuItemId, qty (1–999), note? (≤ 200) }] }`, 1–100 món | 201 `{ round, tickets, tabTotal }` | 409 `TAB_NOT_OPEN`, `ITEM_UNAVAILABLE` |
+| `POST /tabs/:id/move` | C M O | `{ targetTableId }` | 200 `{ tabId, tableId, tableCode }` | 400 `SAME_TABLE`; 409 `TABLE_NOT_EMPTY`, `TAB_NOT_OPEN` |
+| `POST /tabs/:id/merge` | C M O | `{ targetTableId }` | 200 `{ targetTabId, tableId, tableCode, tabTotal }` | 400 `SAME_TABLE`; 409 `TABLE_EMPTY`, `TAB_NOT_OPEN` |
+| `POST /order-lines/:id/void` | C (cần PIN) M O | `{ qty (≥ 1), reason, note?, approverPin? }` | 201 dòng `VOID` + `tabTotal` | 400 `PIN_REQUIRED`, `INVALID_PIN`, `QTY_EXCEEDED`; 409 `TAB_NOT_OPEN` |
+| `POST /order-lines/:id/discount` | C (cần PIN) M O | `{ type: PERCENT\|AMOUNT, value (> 0, % ≤ 100), reason, note?, approverPin? }` | 201 dòng `DISCOUNT` + `tabTotal` | 400 `PIN_REQUIRED`, `INVALID_PIN`, `DISCOUNT_EXCEEDED`; 409 `TAB_NOT_OPEN` |
+| `POST /tabs/:id/provisional` | C M O | — | 201 hóa đơn tạm tính (mục 3) | 409 `TAB_NOT_OPEN` |
+
+### 4.4 Thanh toán
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /tabs/:id/vietqr` | C M O | query `amount?` (> 0; bỏ trống = tổng hiện tại) | 200 `{ url, amount, addInfo, billNo, bank, account, accountName }` | 400 `VALIDATION_ERROR` nếu số tiền ≤ 0 |
+| `POST /tabs/:id/pay` | C M O | `{ billDiscount?: { type, value, reason?, note? }, approverPin?, payments: [{ method: CASH\|TRANSFER, amount (> 0) }] }`, tối đa 10 khoản | 200 hóa đơn cuối (mục 3) | 400 `INSUFFICIENT_PAYMENT`, `OVERPAID_TRANSFER`, `PIN_REQUIRED`, `INVALID_PIN`; 409 `TAB_NOT_OPEN` |
+
+`approverPin` chỉ cần khi người gọi là C và có `billDiscount`.
+
+### 4.5 Ca
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `POST /shifts/open` | C M O | `{ openingCash }` | 201 ca | 409 `SHIFT_ALREADY_OPEN` (`details.shiftId`) |
+| `GET /shifts/current` | C M O | — | 200 ca đang mở hoặc `null` | |
+| `POST /shifts/:id/close` | M O | `{ countedCash }` | 200 ca kèm `expectedCash`, `difference` | 409 `SHIFT_ALREADY_CLOSED` |
+| `GET /shifts` | M O | — | 200 50 ca gần nhất, mới nhất trước | |
+
+### 4.6 Vòi & keg
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /taps` | C M O | — | 200 `{ taps, inStockKegs }` | |
+| `POST /taps/:id/change-keg` | C M O | `{ kegId }` | 200 `{ tapId, emptiedKeg: { id, code, soldMl } \| null, tappedKeg: { id, code, tappedAt } }` | 409 `KEG_NOT_IN_STOCK` |
+| `GET /kegs` | M O | query `status?` = `IN_STOCK`\|`TAPPED`\|`EMPTY` | 200 `{ summary, items }` | |
+| `POST /kegs` | M O | `{ beerName, capacityMl: 30000\|50000, cost, receivedAt (ngày), quantity (1–50) }` | 201 mảng keg vừa tạo | |
+
+### 4.7 Thực đơn
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /menu` | C M O | — | 200 nhóm → món đang bán, giá hiện hành | |
+| `GET /menu-groups` | O | — | 200 mảng nhóm | |
+| `POST /menu-groups` · `PATCH /menu-groups/:id` | O | `{ name (1–50), sortOrder? }` | 201 / 200 | |
+| `GET /kitchen-stations` | O | — | 200 mảng khu chế biến | |
+| `POST /kitchen-stations` · `PATCH /kitchen-stations/:id` | O | `{ name (1–50), sortOrder? }` | 201 / 200 | |
+| `GET /menu-items` | O | query `groupId?`, `q?` (tìm tên/mã tắt), `includeInactive?` = `true` | 200 mảng món | |
+| `POST /menu-items` | O | `{ name (1–100), shortcut (a–z, 0–9, ≤ 20), groupId, price, unit (1–20), stationId, beerVolumeMl?, defaultTapId?, available?, active?, sortOrder? }` | 201 món | 409 `DUPLICATE_SHORTCUT`; 400 `VALIDATION_ERROR` nếu có `beerVolumeMl` mà thiếu `defaultTapId` |
+| `PATCH /menu-items/:id` | O | như POST, mọi trường `?` | 200 món | như POST |
+
+### 4.8 Nhân viên
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /staff` | O | — | 200 mảng `{ id, fullName, email, role, active, hasPin, createdAt }` | |
+| `POST /staff` | O | `{ fullName, email, password (≥ 6), role, pin?, active? }` | 201 nhân viên | 409 `DUPLICATE_EMAIL` |
+| `PATCH /staff/:id` | O | `{ fullName?, email?, password?, role?, pin? (null = xóa), active? }` | 200 nhân viên | 400 `CANNOT_LOCK_SELF`; 409 `DUPLICATE_EMAIL`, `LAST_OWNER` |
+
+Vai trò `COUNTER` luôn bị bỏ PIN, kể cả khi gửi lên.
+
+### 4.9 Giờ vàng
+
+| API | Quyền | Request | Thành công | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /happy-hours` | O | — | 200 mảng khung, kèm `activeNow`, `prices` | |
+| `POST /happy-hours` | O | `{ name (1–100), weekdays: [1–7] (≥ 1 thứ), startTime, endTime (khác startTime), enabled?, prices: [{ menuItemId, price }] }` — mỗi món một lần | 201 khung | |
+| `PATCH /happy-hours/:id` | O | như POST, mọi trường `?`; có `prices` thì thay toàn bộ | 200 khung | |
+| `DELETE /happy-hours/:id` | O | — | 204 | |
+
+### 4.10 Báo cáo
+
+Khoảng ngày `from`, `to` tính theo giờ Việt Nam, lấy cả hai đầu.
+
+| API | Quyền | Query | Mặc định | Lỗi riêng |
+|---|---|---|---|---|
+| `GET /reports/today` | M O | — | Hôm nay so với cùng giờ hôm qua | |
+| `GET /reports/keg-loss` | O | `from?`, `to?`, `threshold?` (0–100) | 30 ngày gần nhất, ngưỡng 5% | |
+| `GET /reports/voids` | M O | `from?`, `to?`, `staffId?`, `approverId?`, `reason?`, `type?` | 7 ngày gần nhất | |
+| `GET /reports/top-items` | O | `from?`, `to?`, `by?` = `qty`\|`revenue`, `limit?` (1–50) | 7 ngày gần nhất, `by=qty`, `limit=10` | 400 `RANGE_TOO_LARGE` (> 31 ngày) |
+| `GET /reports/hourly` | O | `from?`, `to?` | 7 ngày gần nhất | 400 `RANGE_TOO_LARGE` (> 31 ngày) |
