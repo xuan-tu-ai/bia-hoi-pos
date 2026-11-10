@@ -1,7 +1,7 @@
 # Đặc tả yêu cầu phần mềm (SRS): Hệ thống quản lý quầy nhà hàng bia hơi
 
 > Nhóm 7 — môn Quản trị dự án — ĐH Bách Khoa
-> Phiên bản: 0.2 — 2026-10-24
+> Phiên bản: 0.3 — 2026-11-10
 > Người soạn: Nguyễn Xuân Tự (quản lý dự án)
 > Tài liệu liên quan: `ke-hoach-quan-ly-du-an.md` (kế hoạch quản lý dự án), `tam-nhin.md` (hướng phát triển — ngoài phạm vi)
 
@@ -9,6 +9,7 @@
 |---|---|---|
 | 0.1 | 24/10/2026 | Bản đầu: một web app có phân quyền |
 | 0.2 | 24/10/2026 | Phân công mới sau buổi họp 24/10: tách backend (Node.js + Express) và frontend (React); thêm cấu trúc thư mục, sơ đồ phân rã chức năng, đặc tả API, bảng phân công & hạn hoàn thành |
+| 0.3 | 10/11/2026 | Làm rõ theo danh sách câu hỏi QA-00 của Thái: FR-01 (đăng nhập nhiều máy), FR-08 (chuyển khoản), FR-09 (bán khi chưa mở ca), FR-10 (thay keg còn bia), FR-15 (giờ vàng trùng nhau, giảm giá cộng dồn), FR-19 (giờ cao điểm) |
 
 > **Lưu ý:** phân công trong tài liệu này (mục 10) là bản mới nhất, thống nhất tại buổi họp 24/10. Nếu khác với kế hoạch quản lý dự án thì theo tài liệu này.
 
@@ -270,6 +271,7 @@ Mỗi chức năng gồm: **mô tả**, **cách hoạt động**, **API dùng** 
 
 - **Mô tả:** người dùng đăng nhập bằng email + mật khẩu. Sau khi đăng nhập, menu bên trái chỉ hiện các chức năng hợp với vai trò (mục 2.2).
 - **Cách hoạt động:** backend kiểm tra email/mật khẩu, trả về JWT (hết hạn sau 12 giờ) và thông tin người dùng. Frontend lưu token, gắn vào header `Authorization: Bearer <token>` cho mọi request. Khi token hết hạn (lỗi 401), tự chuyển về trang đăng nhập.
+  - Một tài khoản được đăng nhập cùng lúc trên nhiều máy, các máy đều dùng được; mọi thao tác vẫn ghi nhật ký theo tài khoản đó.
 - **API:** `POST /api/auth/login`, `GET /api/auth/me`
 - **Tiêu chí nghiệm thu:**
   - [ ] Sai email hoặc mật khẩu → báo "Email hoặc mật khẩu không đúng".
@@ -360,7 +362,7 @@ Mỗi chức năng gồm: **mô tả**, **cách hoạt động**, **API dùng** 
 - **Cách hoạt động:**
   - Màn thanh toán hiện: tổng tiền, ô giảm giá cả hóa đơn (nhân viên quầy cần PIN), chọn phương thức:
     - **Tiền mặt:** nhập tiền khách đưa (có nút nhanh 100k/200k/500k) → hiện tiền thừa.
-    - **Chuyển khoản:** hiện ảnh mã **VietQR** có sẵn số tiền và nội dung `BH<số hóa đơn>`. Nhân viên kiểm tra điện thoại rồi bấm "Đã nhận tiền".
+    - **Chuyển khoản:** hiện ảnh mã **VietQR** có sẵn số tiền và nội dung `BH<số hóa đơn>`. Nhân viên kiểm tra điện thoại rồi bấm "Đã nhận tiền". Hệ thống không kết nối ngân hàng nên không tự biết khách chuyển thiếu hay thừa; chỉ chặn nhập số chuyển khoản lớn hơn số phải trả.
     - Có thể chia một phần tiền mặt, một phần chuyển khoản.
   - Bấm hoàn tất → backend lưu thanh toán, đóng phiên, bàn về trống; frontend hiện hóa đơn để in.
   - Ảnh VietQR dùng dịch vụ miễn phí `https://img.vietqr.io/image/<mã ngân hàng>-<số tài khoản>-compact2.png?amount=<số tiền>&addInfo=<nội dung>&accountName=<tên>`. Thông tin tài khoản của quán lấy từ biến môi trường backend.
@@ -373,11 +375,12 @@ Mỗi chức năng gồm: **mô tả**, **cách hoạt động**, **API dùng** 
 #### FR-09 Mở / đóng ca — S
 
 - **Mô tả:** theo dõi tiền trong két theo ca.
-- **Cách hoạt động:** mở ca nhập tiền đầu ca. Đóng ca (chỉ Quản lý ca/Chủ quán): hệ thống tính tổng tiền mặt và chuyển khoản thu trong ca; người đóng ca nhập tiền mặt đếm được → hiện chênh lệch.
+- **Cách hoạt động:** mở ca nhập tiền đầu ca. Đóng ca (chỉ Quản lý ca/Chủ quán): hệ thống tính tổng tiền mặt và chuyển khoản thu trong ca; người đóng ca nhập tiền mặt đếm được → hiện chênh lệch. Không bắt buộc mở ca mới được mở bàn, gọi món, thanh toán; khi chưa có ca đang mở, sơ đồ bàn hiện dòng nhắc "Chưa mở ca".
 - **API:** `POST /api/shifts/open`, `GET /api/shifts/current`, `POST /api/shifts/:id/close`, `GET /api/shifts`
 - **Tiêu chí nghiệm thu:**
   - [ ] Không mở được ca mới khi đang có ca chưa đóng.
   - [ ] Chênh lệch = tiền đếm − (tiền đầu ca + tiền mặt thu trong ca).
+  - [ ] Chưa mở ca → sơ đồ bàn hiện dòng nhắc "Chưa mở ca", nhưng vẫn mở bàn và gọi món được.
 
 #### FR-10 Thay keg — M
 
@@ -386,10 +389,12 @@ Mỗi chức năng gồm: **mô tả**, **cách hoạt động**, **API dùng** 
   - Màn "Vòi bia": mỗi vòi một thẻ, hiện keg đang gắn, gắn từ lúc nào, số lít đã bán và thanh tiến độ so với dung tích.
   - Mỗi món bia hơi có **thể tích** (cốc 500 ml, ca 1.500 ml, tháp 3.000 ml) và **vòi mặc định**. Số lít đã bán của keg = tổng thể tích các món bia (trừ món đã hủy) được gửi trong thời gian keg đó gắn trên vòi.
   - Bấm "Thay keg" → chọn keg mới từ kho → keg cũ chuyển "Đã hết" (lưu thời điểm và số lít đã bán), keg mới chuyển "Đang dùng".
+  - Vẫn cho thay khi keg cũ còn bia. Nếu keg cũ mới bán dưới 90% dung tích, hiện hộp xác nhận "Keg mới bán X%, chắc chắn thay?". Phần bia còn lại được tính là hao hụt và hiện trong báo cáo hao hụt (FR-17) để chủ quán kiểm tra.
 - **API:** `GET /api/taps`, `POST /api/taps/:id/change-keg`
 - **Tiêu chí nghiệm thu:**
   - [ ] Chỉ chọn được keg đang "Trong kho".
   - [ ] Keg vừa thay ra xuất hiện đúng trong báo cáo hao hụt (FR-17).
+  - [ ] Thay keg đang bán dưới 90% → hiện hộp xác nhận; bấm hủy thì không thay.
 
 ### 6.2 Phân hệ Quản trị
 
@@ -438,7 +443,7 @@ Mỗi chức năng gồm: **mô tả**, **cách hoạt động**, **API dùng** 
 #### FR-15 Giá giờ vàng — S
 
 - **Mô tả:** bán giá ưu đãi theo khung giờ (vd bia hơi cốc 12.000 ₫ từ 16:00–18:00, thứ 2 đến thứ 6).
-- **Cách hoạt động:** danh sách khung giờ vàng: tên, các thứ trong tuần, giờ bắt đầu – kết thúc, bật/tắt; mỗi khung chọn món và giá ưu đãi. Khi gửi lượt gọi trong khung giờ đang bật, backend dùng giá ưu đãi.
+- **Cách hoạt động:** danh sách khung giờ vàng: tên, các thứ trong tuần, giờ bắt đầu – kết thúc, bật/tắt; mỗi khung chọn món và giá ưu đãi. Khi gửi lượt gọi trong khung giờ đang bật, backend dùng giá ưu đãi. Nhiều khung cùng hiệu lực thì lấy giá thấp nhất. Giảm giá món hoặc cả hóa đơn (FR-06, FR-08) được trừ thêm trên giá đã chốt này.
 - **API:** `GET/POST/PATCH/DELETE /api/happy-hours`
 - **Tiêu chí nghiệm thu:**
   - [ ] Gửi trong khung giờ → giá ưu đãi; ngoài khung → giá thường.
@@ -476,7 +481,7 @@ Các màn báo cáo phải hiển thị tốt trên điện thoại (chiều nga
 #### FR-19 Món bán chạy & giờ cao điểm — S
 
 - **Mô tả:** giúp chủ quán biết món nào bán tốt, giờ nào đông.
-- **Cách hoạt động:** chọn khoảng ngày (tối đa 31 ngày), chọn xếp theo số lượng hoặc doanh thu. Biểu đồ cột top 10 món; biểu đồ doanh thu theo giờ trong ngày.
+- **Cách hoạt động:** chọn khoảng ngày (tối đa 31 ngày), chọn xếp theo số lượng hoặc doanh thu. Biểu đồ cột top 10 món; biểu đồ doanh thu theo giờ trong ngày (giờ cao điểm), tính theo thời điểm thanh toán.
 - **API:** `GET /api/reports/top-items?from=&to=&by=`, `GET /api/reports/hourly?from=&to=`
 - **Tiêu chí nghiệm thu:**
   - [ ] Chọn khoảng quá 31 ngày → báo lỗi.
