@@ -4,6 +4,9 @@ import { env } from './config/env.js';
 import { authenticate } from './middlewares/auth.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { areaRoutes } from './modules/areas/areas.routes.js';
+import { menuRoutes } from './modules/menu/menu.routes.js';
+import { staffRoutes } from './modules/staff/staff.routes.js';
 
 export function createApp() {
   const app = express();
@@ -21,6 +24,9 @@ export function createApp() {
   api.use(authRoutes);
   // Mọi API còn lại cần token (NFR-05)
   api.use(authenticate);
+  api.use(areaRoutes);
+  api.use(menuRoutes);
+  api.use(staffRoutes);
   api.use(notFoundHandler);
 
   app.use('/api', api);
