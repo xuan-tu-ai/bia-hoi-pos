@@ -6,14 +6,19 @@ REST API (Node.js 20 + Express 5 + TypeScript + Prisma + PostgreSQL). Phụ trá
 
 ```bash
 cd backend
-cp .env.example .env        # rồi điền DATABASE_URL (Neon), JWT_SECRET…
-npm install
-npx prisma migrate dev      # tạo bảng
-npx prisma db seed          # dữ liệu mẫu SRS 8.3 (xóa sạch dữ liệu cũ rồi tạo lại)
+cp .env.example .env        # đã có sẵn chuỗi kết nối CSDL chung trên Neon
+npm install                 # tự chạy prisma generate
 npm run dev                 # http://localhost:3000/api
 ```
 
-CSDL chung của nhóm trên Neon đã được tạo bảng và seed sẵn. Chỉ người phụ trách backend chạy `migrate` / `db seed` lên CSDL chung (seed xóa toàn bộ dữ liệu cũ); các thành viên khác chỉ cần điền `DATABASE_URL` rồi `npm run dev`.
+Người phụ trách backend, khi đổi schema hoặc cần làm mới dữ liệu mẫu SRS 8.3:
+
+```bash
+npx prisma migrate dev      # tạo / cập nhật bảng
+npx prisma db seed          # xóa sạch dữ liệu cũ rồi tạo lại
+```
+
+CSDL chung của nhóm trên Neon đã được tạo bảng và seed sẵn. Chỉ người phụ trách backend chạy `migrate` / `db seed` lên CSDL chung (seed xóa toàn bộ dữ liệu cũ); các thành viên khác chỉ cần `cp .env.example .env` rồi `npm run dev`.
 
 Tài khoản mẫu (mật khẩu `123456`): `lan@` / `minh@` (quầy), `hung@` (quản lý ca, PIN 1234), `hoa@` (chủ quán, PIN 9999), `khoa@` (đã khóa) — đuôi `@biahoi.vn`.
 
