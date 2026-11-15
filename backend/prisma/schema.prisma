@@ -1,0 +1,298 @@
+// Mô hình dữ liệu — xuất phát từ SRS v0.2 mục 8.2.
+// Phần bổ sung so với bản khởi đầu được đánh dấu "(bổ sung)".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  COUNTER
+  SHIFT_MANAGER
+  OWNER
+}
+
+enum TabStatus {
+  OPEN
+  PAID
+  MERGED // (bổ sung) phiên đã gộp vào phiên khác
+}
+
+enum LineType {
+  NORMAL
+  VOID
+  DISCOUNT
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+}
+
+enum BillPrintKind {
+  PROVISIONAL
+  FINAL
+}
+
+enum KegStatus {
+  IN_STOCK
+  TAPPED
+  EMPTY
+}
+
+model Staff {
+  id           Int      @id @default(autoincrement())
+  fullName     String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  pinHash      String? // chỉ SHIFT_MANAGER, OWNER
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  openedTabs       Tab[]        @relation("TabOpenedBy")
+  billDiscountReqs Tab[]        @relation("TabBillDiscountBy")
+  billDiscountApps Tab[]        @relation("TabBillDiscountApprovedBy")
+  rounds           OrderRound[]
+  requestedLines   OrderLine[]  @relation("LineRequestedBy")
+  approvedLines    OrderLine[]  @relation("LineApprovedBy")
+  payments         Payment[]
+  shifts           Shift[]      @relation("ShiftOpenedBy")
+  closedShifts     Shift[]      @relation("ShiftClosedBy")
+  auditLogs        AuditLog[]
+}
+
+model Area {
+  id        Int           @id @default(autoincrement())
+  name      String
+  sortOrder Int           @default(0)
+  active    Boolean       @default(true) // (bổ sung) khu đã ẩn
+  tables    DiningTable[]
+}
+
+model DiningTable {
+  id        Int     @id @default(autoincrement())
+  areaId    Int
+  area      Area    @relation(fields: [areaId], references: [id])
+  code      String  @unique
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+  tabs      Tab[]
+
+  @@index([areaId])
+}
+
+model KitchenStation {
+  id        Int        @id @default(autoincrement())
+  name      String
+  sortOrder Int        @default(0) // (bổ sung)
+  items     MenuItem[]
+}
+
+model MenuGroup {
+  id        Int        @id @default(autoincrement())
+  name      String
+  sortOrder Int        @default(0)
+  items     MenuItem[]
+}
+
+model MenuItem {
+  id           Int              @id @default(autoincrement())
+  groupId      Int
+  group        MenuGroup        @relation(fields: [groupId], references: [id])
+  name         String
+  shortcut     String           @unique
+  price        Int
+  unit         String
+  stationId    Int
+  station      KitchenStation   @relation(fields: [stationId], references: [id])
+  beerVolumeMl Int? // chỉ món bia hơi
+  defaultTapId Int?
+  defaultTap   Tap?             @relation(fields: [defaultTapId], references: [id])
+  available    Boolean          @default(true) // false = Hết món
+  active       Boolean          @default(true) // false = đã ẩn
+  sortOrder    Int              @default(0) // (bổ sung)
+  lines        OrderLine[]
+  happyPrices  HappyHourPrice[]
+}
+
+model HappyHour {
+  id        Int              @id @default(autoincrement())
+  name      String
+  weekdays  Int[] // 1 = Thứ 2 ... 7 = Chủ nhật
+  startTime String // "16:00"
+  endTime   String // "18:00"
+  enabled   Boolean          @default(true)
+  prices    HappyHourPrice[]
+}
+
+model HappyHourPrice {
+  id          Int       @id @default(autoincrement())
+  happyHourId Int
+  happyHour   HappyHour @relation(fields: [happyHourId], references: [id], onDelete: Cascade)
+  menuItemId  Int
+  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id])
+  price       Int
+
+  @@unique([happyHourId, menuItemId])
+}
+
+model Tab {
+  id           Int          @id @default(autoincrement())
+  tableId      Int
+  table        DiningTable  @relation(fields: [tableId], references: [id])
+  guestCount   Int?
+  status       TabStatus    @default(OPEN)
+  openedAt     DateTime     @default(now())
+  openedById   Int
+  openedBy     Staff        @relation("TabOpenedBy", fields: [openedById], references: [id])
+  closedAt     DateTime?
+  billNo       String?      @unique
+  billDiscount Int          @default(0)
+  mergedIntoId Int? // phiên đã bị gộp vào phiên khác
+  mergedInto   Tab?         @relation("TabMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom   Tab[]        @relation("TabMerge")
+  rounds       OrderRound[]
+  payments     Payment[]
+  prints       BillPrint[]
+
+  // (bổ sung) giảm giá cả hóa đơn — để hiện trong nhật ký hủy/giảm (FR-18)
+  billDiscountReason       String?
+  billDiscountNote         String?
+  billDiscountById         Int?
+  billDiscountBy           Staff?  @relation("TabBillDiscountBy", fields: [billDiscountById], references: [id])
+  billDiscountApprovedById Int?
+  billDiscountApprovedBy   Staff?  @relation("TabBillDiscountApprovedBy", fields: [billDiscountApprovedById], references: [id])
+
+  @@index([status])
+  @@index([tableId, status])
+  @@index([closedAt])
+}
+
+model OrderRound {
+  id          Int         @id @default(autoincrement())
+  tabId       Int
+  tab         Tab         @relation(fields: [tabId], references: [id])
+  createdAt   DateTime    @default(now())
+  createdById Int
+  createdBy   Staff       @relation(fields: [createdById], references: [id])
+  lines       OrderLine[]
+
+  @@index([tabId])
+}
+
+model OrderLine {
+  id            Int         @id @default(autoincrement())
+  roundId       Int
+  round         OrderRound  @relation(fields: [roundId], references: [id])
+  menuItemId    Int
+  menuItem      MenuItem    @relation(fields: [menuItemId], references: [id])
+  qty           Int // âm với VOID
+  unitPrice     Int // âm với DISCOUNT
+  note          String?
+  lineType      LineType    @default(NORMAL)
+  refLineId     Int? // dòng gốc bị hủy/giảm
+  refLine       OrderLine?  @relation("LineRef", fields: [refLineId], references: [id])
+  adjustments   OrderLine[] @relation("LineRef")
+  reason        String?
+  requestedById Int?
+  requestedBy   Staff?      @relation("LineRequestedBy", fields: [requestedById], references: [id])
+  approvedById  Int?
+  approvedBy    Staff?      @relation("LineApprovedBy", fields: [approvedById], references: [id])
+  tapId         Int? // vòi tính thể tích (món bia hơi)
+  kegId         Int? // keg đang gắn trên vòi lúc gửi
+  keg           Keg?        @relation(fields: [kegId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([roundId])
+  @@index([refLineId])
+  @@index([kegId])
+  @@index([lineType, createdAt])
+}
+
+model Payment {
+  id           Int           @id @default(autoincrement())
+  tabId        Int
+  tab          Tab           @relation(fields: [tabId], references: [id])
+  method       PaymentMethod
+  amount       Int // số tiền thực thu (tiền mặt đã trừ tiền thừa)
+  receivedById Int
+  receivedBy   Staff         @relation(fields: [receivedById], references: [id])
+  createdAt    DateTime      @default(now())
+
+  @@index([tabId])
+  @@index([createdAt])
+}
+
+model BillPrint {
+  id        Int           @id @default(autoincrement())
+  tabId     Int
+  tab       Tab           @relation(fields: [tabId], references: [id])
+  kind      BillPrintKind
+  printNo   Int
+  printedAt DateTime      @default(now())
+
+  @@index([tabId])
+}
+
+model Shift {
+  id          Int       @id @default(autoincrement())
+  staffId     Int
+  staff       Staff     @relation("ShiftOpenedBy", fields: [staffId], references: [id])
+  openedAt    DateTime  @default(now())
+  openingCash Int
+  closedAt    DateTime?
+  closedById  Int?
+  closedBy    Staff?    @relation("ShiftClosedBy", fields: [closedById], references: [id])
+  countedCash Int?
+  // (bổ sung) chốt số liệu khi đóng ca
+  cashSales     Int?
+  transferSales Int?
+}
+
+model Tap {
+  id           Int        @id @default(autoincrement())
+  name         String
+  sortOrder    Int        @default(0) // (bổ sung)
+  currentKegId Int?       @unique
+  currentKeg   Keg?       @relation("TapCurrentKeg", fields: [currentKegId], references: [id])
+  menuItems    MenuItem[]
+  kegs         Keg[]      @relation("KegTap")
+}
+
+model Keg {
+  id         Int         @id @default(autoincrement())
+  code       String      @unique
+  beerName   String
+  capacityMl Int
+  cost       Int
+  receivedAt DateTime
+  status     KegStatus   @default(IN_STOCK)
+  tapId      Int?
+  tap        Tap?        @relation("KegTap", fields: [tapId], references: [id])
+  tappedAt   DateTime?
+  emptiedAt  DateTime?
+  soldMl     Int? // chốt khi keg chuyển sang EMPTY
+  onTap      Tap?        @relation("TapCurrentKeg")
+  lines      OrderLine[]
+
+  @@index([status])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   Int
+  actor     Staff    @relation(fields: [actorId], references: [id])
+  action    String // vd "TAB_MERGED", "LINE_VOIDED"
+  entity    String
+  entityId  Int
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
