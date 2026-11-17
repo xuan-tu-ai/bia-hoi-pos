@@ -1,7 +1,9 @@
 import express, { Router } from 'express';
 import cors from 'cors';
 import { env } from './config/env.js';
+import { authenticate } from './middlewares/auth.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
 
 export function createApp() {
   const app = express();
@@ -15,6 +17,10 @@ export function createApp() {
   });
 
   const api = Router();
+  // Công khai: chỉ đăng nhập
+  api.use(authRoutes);
+  // Mọi API còn lại cần token (NFR-05)
+  api.use(authenticate);
   api.use(notFoundHandler);
 
   app.use('/api', api);
