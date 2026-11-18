@@ -1,5 +1,4 @@
-# Kế hoạch kiểm thử Bia Hơi POS
-
+# Kế hoạch kiểm thử
 ## 1. Mục tiêu và phạm vi
 
 Xác minh hệ thống hỗ trợ quy trình từ mở bàn, gửi món đến thanh toán và đối soát. Ưu tiên các lỗi gây sai tiền, mất lịch sử, sai phân quyền hoặc sai trạng thái khi nhiều máy thao tác đồng thời.
