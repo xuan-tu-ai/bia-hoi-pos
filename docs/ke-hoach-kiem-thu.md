@@ -21,6 +21,7 @@ Xác minh hệ thống hỗ trợ quy trình từ mở bàn, gửi món đến t
 
 ## 3. Ma trận ca kiểm thử chức năng
 
+<<<<<<< Updated upstream
 | Ca / Yêu cầu | Ưu tiên | Thao tác và kết quả mong đợi |
 |---|---|---|
 | KT-00 Khởi tạo | M | Gọi `/health` nhận 200; đường dẫn không tồn tại nhận 404; JSON lỗi nhận 400 `VALIDATION_ERROR`. Đếm 80 bàn và 20 phiên đang mở trong dữ liệu seed. |
@@ -43,10 +44,13 @@ Xác minh hệ thống hỗ trợ quy trình từ mở bàn, gửi món đến t
 | KT-17 Hao hụt · FR-17 | M | Keg 50 L bán ròng 92 cốc × 0,5 L cho kết quả 4 L, 8%, tô đỏ với ngưỡng 5%. Đối chiếu tổng lít và giá trị hao hụt với dữ liệu nhập; kiểm tra lọc ngày/ngưỡng và quyền Chủ quán. | 
 | KT-18 Nhật ký · FR-18 | M | Hủy, giảm món và giảm cả hóa đơn xuất hiện với người yêu cầu/duyệt, lý do, thời gian và số tiền đúng. So khớp số lần/tổng tiền và thử từng bộ lọc hoặc kết hợp. | 
 | KT-19 Món bán chạy và giờ cao điểm · FR-19 | S | Kiểm tra top 10 theo số lượng/doanh thu và nhóm theo giờ thanh toán. Khoảng 31 ngày hợp lệ, trên 31 ngày bị chặn. Tải ≤3 giây với dữ liệu mẫu. |
+=======
+Xem [ma trận và ca kiểm thử chi tiết](test-cases.md).
+>>>>>>> Stashed changes
 
 ## 4. Kiểm thử phi chức năng và toàn vẹn
 
-| Mã SRS | Phương pháp và tiêu chí |
+|  Mã SRS  | Phương pháp và tiêu chí |
 |---|---|
 | NFR-01 | Tạo 80 phiên mở bằng fixture riêng, đo từ thao tác đến phản hồi có thể sử dụng trên màn Quầy. Ghi số mẫu, p95, giá trị lớn nhất và số lần vượt ngưỡng. Tiêu chí SRS là mỗi thao tác ≤1 giây. |
 | NFR-02 | Dùng ít nhất 3 máy/phiên độc lập. Đo từ lúc máy A nhận cập nhật thành công đến lúc máy B/C hiển thị trạng thái mới, tối đa 3 giây. Lặp lại với mở, chuyển, gộp và thanh toán. |
@@ -66,12 +70,25 @@ Xác minh hệ thống hỗ trợ quy trình từ mở bàn, gửi món đến t
 
 **Điều kiện bắt đầu** có mã nguồn định danh được, DB thử đã migrate và seed, tài khoản đủ vai trò. Ca cần UI, máy in, QR hoặc đa máy chỉ bắt đầu khi có đúng môi trường tương ứng.
 
-**Điều kiện kết thúc từng đợt** build/typecheck và bộ hồi quy tương ứng đạt; toàn bộ ca bắt buộc trong phạm vi đợt đạt; lỗi chặn luồng, sai tiền, mất dữ liệu hoặc sai quyền đã được sửa và kiểm tra lại. Để nghiệm thu toàn hệ thống, tất cả ca M và NFR phải đạt và UAT được xác nhận. Ca S còn tồn cần được người phụ trách sản phẩm ghi nhận khi chốt nghiệm thu.
+**Điều kiện kết thúc từng đợt** Build, typecheck và bộ hồi quy tương ứng đạt. Nghiệm thu UAT khi **≥ 95% ca mức M đạt, 0 lỗi nghiêm trọng** và kịch bản UAT được xác nhận. Tính tỷ lệ theo số ca M đạt chia cho tổng số ca M trong phạm vi nghiệm thu, kể cả ca chưa chạy hoặc bị chặn.
 
 ## 6. Ghi kết quả và quản lý lỗi
 
 Dùng trạng thái `Not Run`, `Pass`, `Fail`, `Blocked`. Ghi lý do và điều kiện để chạy lại mỗi ca `Blocked`. Báo cáo số ca theo từng trạng thái và tính tỷ lệ đạt trên số đã chạy, `Pass / (Pass + Fail)`.
 
-| Ca | Bản build | Ngày/người chạy | Trạng thái | Thực tế và bằng chứng | Mã lỗi hoặc lý do chặn |
-|---|---|---|---|---|---|
-| KT-01 |  |  | Not Run |  |  |
+Ví dụ minh họa cách ghi một ca lỗi:
+
+| Mã ca | Yêu cầu | Mức độ lỗi | Trạng thái | Các bước tái hiện | Kết quả mong đợi | Kết quả thực tế (kèm ảnh nếu có) |
+|---|---|---|---|---|---|---|
+| KT-01-01 | FR-11 | Trung bình | Fail |  Tạo món với mã tắt đã tồn tại và bấm Lưu. | API trả `409 DUPLICATE_SHORTCUT` và không tạo món trùng. | Món thứ hai được lưu với cùng mã tắt. |
+
+### Mức độ lỗi
+
+| Mức độ | Tiêu chí |
+|---|---|
+| Nghiêm trọng | Sai tiền, mất dữ liệu, lộ dữ liệu hoặc thao tác trái quyền, hoặc hệ thống sập. |
+| Cao | Chức năng mức M không dùng được. |
+| Trung bình | Chức năng vẫn dùng được nhưng một phần hoạt động sai hoặc phải dùng cách xử lý tạm. |
+| Thấp | Lỗi trình bày hoặc câu chữ, không ảnh hưởng đến việc hoàn tất thao tác. |
+
+**Mẫu báo lỗi** Dùng issue mẫu [Báo lỗi](../.github/ISSUE_TEMPLATE/bao-loi.md) trên GitHub, ghi mã ca KT-xx và mức độ lỗi. Ví dụ `KT-xx-xx · Trung bình · FR-11 · Tạo được món có mã tắt trùng`.
