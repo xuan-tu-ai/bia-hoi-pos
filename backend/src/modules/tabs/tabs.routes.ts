@@ -42,3 +42,8 @@ tabRoutes.post('/order-lines/:id/void', async (req, res) => {
 tabRoutes.post('/order-lines/:id/discount', async (req, res) => {
   res.status(201).json(await service.discountLine(currentUser(req), idParam(req), s.discountSchema.parse(req.body)));
 });
+
+// FR-07
+tabRoutes.post('/tabs/:id/provisional', async (req, res) => {
+  res.status(201).json(await service.printProvisional(currentUser(req), idParam(req)));
+});

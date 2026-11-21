@@ -4,7 +4,7 @@ import { audit } from '../../lib/audit.js';
 import { resolveApprover } from '../../lib/approval.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { loadHappyPrices, priceOf } from '../../lib/pricing.js';
-import { lineAmount, lineStates } from '../../lib/tab-total.js';
+import { billLines, lineAmount, lineStates, tabTotal } from '../../lib/tab-total.js';
 import type { AuthUser } from '../../middlewares/auth.js';
 import {
   billNoOf,
@@ -20,7 +20,7 @@ import type * as s from './tabs.schema.js';
 // FR-02 Sơ đồ bàn
 
 export async function summary() {
-  const [tables, openTabs] = await Promise.all([
+  const [tables, openTabs, shift] = await Promise.all([
     prisma.diningTable.findMany({
       where: { active: true, area: { active: true } },
       select: { id: true, code: true, areaId: true, sortOrder: true },
@@ -28,6 +28,12 @@ export async function summary() {
     prisma.tab.findMany({
       where: { status: 'OPEN' },
       select: { id: true, tableId: true, openedAt: true, guestCount: true, _count: { select: { prints: { where: { kind: 'PROVISIONAL' } } } } },
+    }),
+    // FR-09: chưa mở ca vẫn bán được, sơ đồ bàn chỉ hiện dòng nhắc "Chưa mở ca"
+    prisma.shift.findFirst({
+      where: { closedAt: null },
+      orderBy: { id: 'desc' },
+      select: { id: true, openedAt: true, staff: { select: { id: true, fullName: true } } },
     }),
   ]);
   const subtotals = await subtotalsByTab(prisma, openTabs.map((t) => t.id));
@@ -53,7 +59,13 @@ export async function summary() {
       };
     });
 
-  return { occupied: rows.filter((r) => r.status !== 'EMPTY').length, totalTables: tables.length, openAmount, tables: rows };
+  return {
+    occupied: rows.filter((r) => r.status !== 'EMPTY').length,
+    totalTables: tables.length,
+    openAmount,
+    shift: shift ? { id: shift.id, openedAt: shift.openedAt, openedBy: shift.staff } : null,
+    tables: rows,
+  };
 }
 
 // FR-03 Mở phiên bàn
@@ -395,4 +407,37 @@ export async function discountLine(user: AuthUser, lineId: number, input: z.infe
 async function tabTotalOf(tx: Tx, tabId: number) {
   const tab = await tx.tab.findUniqueOrThrow({ where: { id: tabId }, select: { billDiscount: true } });
   return (await subtotalOf(tx, tabId)) - tab.billDiscount;
+}
+
+// FR-07 In tạm tính
+
+/** Dữ liệu hóa đơn (dùng chung cho tạm tính và hóa đơn cuối). */
+export function buildBill(tab: TabWithDetail) {
+  const allLines = tab.rounds.flatMap((r) => r.lines.map((l) => ({ ...l, name: l.menuItem.name })));
+  const lines = billLines(allLines);
+  const subtotal = allLines.reduce((sum, l) => sum + lineAmount(l), 0);
+  return {
+    tabId: tab.id,
+    billNo: tab.billNo ?? billNoOf(tab),
+    tableCode: tab.table.code,
+    areaName: tab.table.area.name,
+    guestCount: tab.guestCount,
+    openedAt: tab.openedAt,
+    lines: lines.map(({ menuItemId: _m, ...l }) => l),
+    subtotal,
+    discount: tab.billDiscount,
+    total: tabTotal(allLines, tab.billDiscount),
+  };
+}
+
+export async function printProvisional(user: AuthUser, tabId: number) {
+  return prisma.$transaction(async (tx) => {
+    await lockOpenTab(tx, tabId);
+    const last = await tx.billPrint.findFirst({ where: { tabId, kind: 'PROVISIONAL' }, orderBy: { printNo: 'desc' } });
+    const print = await tx.billPrint.create({ data: { tabId, kind: 'PROVISIONAL', printNo: (last?.printNo ?? 0) + 1 } });
+    const tab = await tx.tab.findUniqueOrThrow({ where: { id: tabId }, include: tabDetailInclude });
+    const bill = buildBill(tab);
+    await audit(tx, user.id, 'PROVISIONAL_PRINTED', 'Tab', tabId, { printNo: print.printNo, total: bill.total });
+    return { ...bill, kind: 'PROVISIONAL' as const, printNo: print.printNo, printedAt: print.printedAt, printedBy: user.fullName };
+  });
 }
