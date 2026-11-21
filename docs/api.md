@@ -47,6 +47,7 @@ Theo SRS 7.1. Bổ sung:
 ### Phiên bàn
 
 `GET /api/tabs/summary` — như SRS 7.3; mỗi bàn có thêm `guestCount`. Trạng thái: `EMPTY`, `OCCUPIED`, `PROVISIONAL_PRINTED` (đã in tạm tính ít nhất 1 lần).
+Có thêm `shift`: ca đang mở `{ id, openedAt, openedBy: { id, fullName } }` hoặc `null` khi chưa mở ca. Chưa mở ca vẫn mở bàn, gọi món, thanh toán bình thường; frontend chỉ hiện dòng nhắc "Chưa mở ca" (FR-09, SRS v0.3).
 
 `GET /api/tabs/:id`
 
