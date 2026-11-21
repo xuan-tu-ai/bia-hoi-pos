@@ -10,6 +10,8 @@ import { staffRoutes } from './modules/staff/staff.routes.js';
 import { tabRoutes } from './modules/tabs/tabs.routes.js';
 import { paymentRoutes } from './modules/payments/payments.routes.js';
 import { shiftRoutes } from './modules/shifts/shifts.routes.js';
+import { kegRoutes } from './modules/kegs/kegs.routes.js';
+import { happyHourRoutes } from './modules/happy-hours/happy-hours.routes.js';
 
 export function createApp() {
   const app = express();
@@ -33,6 +35,8 @@ export function createApp() {
   api.use(paymentRoutes); // trước tabRoutes để /tabs/:id/vietqr, /tabs/:id/pay khớp đúng
   api.use(tabRoutes);
   api.use(shiftRoutes);
+  api.use(kegRoutes);
+  api.use(happyHourRoutes);
   api.use(notFoundHandler);
 
   app.use('/api', api);
