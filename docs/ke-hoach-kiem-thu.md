@@ -55,7 +55,7 @@ Ví dụ minh họa cách ghi một ca lỗi:
 
 | Mã ca | Yêu cầu | Mức độ lỗi | Trạng thái | Các bước tái hiện | Kết quả mong đợi | Kết quả thực tế (kèm ảnh nếu có) |
 |---|---|---|---|---|---|---|
-| KT-01-01 | FR-11 | Trung bình | Fail |  Tạo món với mã tắt đã tồn tại và bấm Lưu. | API trả `409 DUPLICATE_SHORTCUT` và không tạo món trùng. | Món thứ hai được lưu với cùng mã tắt. |
+| KT-11-02 | FR-11 | Trung bình | Fail |  Tạo món với mã tắt đã tồn tại và bấm Lưu. | API trả `409 DUPLICATE_SHORTCUT` và không tạo món trùng. | Món thứ hai được lưu với cùng mã tắt. |
 
 ### Mức độ lỗi
 
