@@ -113,7 +113,8 @@ với `expectedCash = openingCash + cashSales`, `difference = countedCash − ex
 `GET /api/taps` — `{ taps: [{ id, name, currentKeg: { id, code, beerName, capacityMl, tappedAt, soldMl, percent } | null }], inStockKegs: [...] }`.
 `inStockKegs` để nhân viên quầy chọn keg khi thay (họ không có quyền gọi `GET /kegs`).
 
-`POST /api/taps/:id/change-keg` — body `{ "kegId": 9 }`. Keg cũ → `EMPTY`, chốt `soldMl`; keg mới → `TAPPED`.
+`POST /api/taps/:id/change-keg` — body `{ "kegId": 9, "confirm"?: true }`. Keg cũ → `EMPTY`, chốt `soldMl`; keg mới → `TAPPED`.
+Nếu keg cũ mới bán dưới 90% dung tích mà chưa gửi `confirm: true` → 409 `KEG_NOT_FINISHED`, message "Keg mới bán X%, chắc chắn thay?", `details: { kegId, soldMl, capacityMl, percent }`, chưa thay gì. Frontend hiện hộp xác nhận; người dùng đồng ý thì gửi lại kèm `confirm: true` (FR-10, SRS v0.3).
 
 `GET /api/kegs?status=` — `{ summary: { inStock, tapped, empty }, items: [...] }`.
 `POST /api/kegs` — body `{ beerName, capacityMl: 30000 | 50000, cost, receivedAt: "YYYY-MM-DD", quantity }`, trả mảng keg vừa tạo (mã `KEG-xxxx`).
@@ -198,7 +199,7 @@ Kiểu dữ liệu dùng chung: **tiền** = số nguyên ≥ 0; **PIN** = chu�
 | API | Quyền | Request | Thành công | Lỗi riêng |
 |---|---|---|---|---|
 | `GET /taps` | C M O | — | 200 `{ taps, inStockKegs }` | |
-| `POST /taps/:id/change-keg` | C M O | `{ kegId }` | 200 `{ tapId, emptiedKeg: { id, code, soldMl } \| null, tappedKeg: { id, code, tappedAt } }` | 409 `KEG_NOT_IN_STOCK` |
+| `POST /taps/:id/change-keg` | C M O | `{ kegId, confirm? }` | 200 `{ tapId, emptiedKeg: { id, code, soldMl } \| null, tappedKeg: { id, code, tappedAt } }` | 409 `KEG_NOT_IN_STOCK`, 409 `KEG_NOT_FINISHED` |
 | `GET /kegs` | M O | query `status?` = `IN_STOCK`\|`TAPPED`\|`EMPTY` | 200 `{ summary, items }` | |
 | `POST /kegs` | M O | `{ beerName, capacityMl: 30000\|50000, cost, receivedAt (ngày), quantity (1–50) }` | 201 mảng keg vừa tạo | |
 
