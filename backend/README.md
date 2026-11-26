@@ -22,9 +22,11 @@ CSDL chung của nhóm trên Neon đã được tạo bảng và seed sẵn. Ch�
 
 Tài khoản mẫu (mật khẩu `123456`): `lan@` / `minh@` (quầy), `hung@` (quản lý ca, PIN 1234), `hoa@` (chủ quán, PIN 9999), `khoa@` (đã khóa) — đuôi `@biahoi.vn`.
 
+Thử nhanh API bằng [`requests.http`](requests.http) (VS Code extension *REST Client*).
+
 ## Kiểm thử tự động
 
-`npm test` chạy các test tích hợp trong `test/` theo tiêu chí nghiệm thu SRS mục 6. Cần một CSDL **riêng cho test** trong `.env`, tạo thêm một database trên cùng project Neon (ví dụ `biahoi_test`):
+`npm test` chạy các test tích hợp trong `test/` theo tiêu chí nghiệm thu SRS mục 6. Các file dùng chung một CSDL test nên chạy lần lượt theo tên (`01-khoi-tao` → `07-bao-cao`). Cần một CSDL **riêng cho test** trong `.env`, tạo thêm một database trên cùng project Neon (ví dụ `biahoi_test`):
 
 ```text
 TEST_DATABASE_URL="postgresql://user:pass@localhost:5432/biahoi_test"
