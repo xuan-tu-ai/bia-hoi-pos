@@ -1,0 +1,10 @@
+{
+  "name": "quan-ly-quay-bia-nhom-7",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview"
+  }
+}
