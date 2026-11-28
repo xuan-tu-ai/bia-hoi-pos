@@ -9,6 +9,10 @@
 
 Theo SRS 7.1. Bổ sung:
 
+- **Địa chỉ gốc:** máy cục bộ `http://localhost:3000/api`; bản triển khai trên Render `https://<tên-dịch-vụ>.onrender.com/api` (xem `backend/README.md`, mục Triển khai). Frontend đặt vào `VITE_API_URL`.
+- `GET /health` (ngoài `/api`, không cần token): `200 {"ok":true}` khi server và CSDL hoạt động, `503 {"ok":false,"error":{"code":"DB_UNAVAILABLE",...}}` khi không kết nối được CSDL.
+- **CORS:** chỉ các địa chỉ trong `CORS_ORIGIN` được gọi API từ trình duyệt; `*` thay cho một đoạn tên miền (dùng cho bản preview của Vercel).
+
 - **Giờ Việt Nam (UTC+7)** dùng cho mọi phép "hôm nay", giờ vàng, doanh thu theo giờ; tham số ngày `from`/`to` dạng `YYYY-MM-DD`, tính cả hai đầu.
 - Lỗi kiểm tra dữ liệu: `400 VALIDATION_ERROR`, `details` là mảng `{ path, message }`.
 - Thành công không có nội dung (xóa): `204`.

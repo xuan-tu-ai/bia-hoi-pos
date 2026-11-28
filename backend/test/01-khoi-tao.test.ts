@@ -5,6 +5,7 @@ import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
+import { createOriginMatcher } from '../src/lib/cors-origin.js';
 
 const app = createApp();
 afterAll(() => prisma.$disconnect());
@@ -26,6 +27,39 @@ describe('Khởi tạo server', () => {
     const res = await request(app).post('/api/khong-co').set('Content-Type', 'application/json').send('{sai');
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('CORS cho frontend triển khai (BE-08)', () => {
+  const allow = createOriginMatcher([
+    'http://localhost:5173',
+    'https://bia-hoi.vercel.app/',
+    'https://bia-hoi-*.vercel.app',
+  ]);
+
+  it('cho phép đúng địa chỉ đã khai báo (bỏ qua "/" cuối và hoa thường)', () => {
+    expect(allow('http://localhost:5173')).toBe(true);
+    expect(allow('https://bia-hoi.vercel.app')).toBe(true);
+    expect(allow('https://BIA-HOI.vercel.app')).toBe(true);
+  });
+
+  it('"*" khớp bản preview của Vercel nhưng không khớp tên miền khác', () => {
+    expect(allow('https://bia-hoi-git-feature-abc-team.vercel.app')).toBe(true);
+    expect(allow('https://bia-hoi-x.vercel.app.evil.com')).toBe(false);
+    expect(allow('https://bia-hoi-a.b.vercel.app')).toBe(false);
+    expect(allow('http://bia-hoi-abc.vercel.app')).toBe(false);
+  });
+
+  it('chặn địa chỉ lạ, cho qua request không có Origin', () => {
+    expect(allow('https://evil.com')).toBe(false);
+    expect(allow(undefined)).toBe(true);
+  });
+
+  it('server trả header CORS cho origin hợp lệ và không trả cho origin lạ', async () => {
+    const ok = await request(app).get('/health').set('Origin', 'http://localhost:5173');
+    expect(ok.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    const bad = await request(app).get('/health').set('Origin', 'https://evil.com');
+    expect(bad.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
 

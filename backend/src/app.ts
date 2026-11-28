@@ -1,6 +1,8 @@
 import express, { Router } from 'express';
 import cors from 'cors';
 import { env } from './config/env.js';
+import { createOriginMatcher } from './lib/cors-origin.js';
+import { prisma } from './lib/prisma.js';
 import { authenticate } from './middlewares/auth.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -18,11 +20,19 @@ export function createApp() {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // Render đặt app sau proxy
-  app.use(cors({ origin: env.corsOrigins }));
+  const isAllowedOrigin = createOriginMatcher(env.corsOrigins);
+  app.use(cors({ origin: (origin, cb) => cb(null, isAllowedOrigin(origin)) }));
   app.use(express.json({ limit: '100kb' }));
 
-  app.get('/health', (_req, res) => {
-    res.json({ ok: true });
+  // Render gọi đường dẫn này để biết bản triển khai còn sống; kiểm tra luôn kết nối CSDL.
+  app.get('/health', async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('Health check: không kết nối được CSDL', err);
+      res.status(503).json({ ok: false, error: { code: 'DB_UNAVAILABLE', message: 'Không kết nối được CSDL' } });
+    }
   });
 
   const api = Router();
