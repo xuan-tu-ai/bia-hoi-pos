@@ -75,3 +75,33 @@ M là bắt buộc, S là nên có.
 | KT-18-02 | FR-18 | M | Lỗi | Quầy gọi API nhật ký hủy/giảm → 403, không trả dữ liệu nhật ký. |
 | KT-19-01 | FR-19 | S | Đúng | Chủ quán xem khoảng 7 ngày có dữ liệu → top món theo tiêu chí chọn, doanh thu nhóm theo giờ thanh toán, tải trong ≤3 giây với dữ liệu mẫu. |
 | KT-19-02 | FR-19 | S | Lỗi | Chọn khoảng 32 ngày → báo vượt giới hạn 31 ngày. |
+
+## Kết quả QA-02 ngày 28/11/2026
+
+Backend trên `develop` đạt **58/58 test tự động** theo kết quả đợt QA-02 ngày 28/11/2026. Bảng dưới ghi các ca có kịch bản backend tương ứng. Dấu “—” ở cột mức độ lỗi nghĩa là ca đạt.
+
+| Mã ca | Yêu cầu | Mức độ lỗi | Trạng thái | Ngày | Thao tác kiểm thử | Kết quả mong đợi | Kết quả ghi nhận và test đối chiếu |
+|---|---|---|---|---|---|---|---|
+| KT-00 | Khởi tạo | — | Pass | 28/11/2026 | Gọi `/health` và kiểm tra seed. | HTTP 200, 80 bàn, 20 phiên mở. | Đạt trong [01-khoi-tao](../backend/test/01-khoi-tao.test.ts). |
+| KT-01-01 | FR-01 | — | Pass | 28/11/2026 | Đăng nhập và gọi `/auth/me`. | Đúng tài khoản, có token, không lộ mật khẩu/PIN. | Đạt trong [02-dang-nhap](../backend/test/02-dang-nhap.test.ts). |
+| KT-01-02 | FR-01 | — | Pass | 28/11/2026 | Đăng nhập sai mật khẩu. | HTTP 401, `INVALID_CREDENTIALS`. | Đạt trong [02-dang-nhap](../backend/test/02-dang-nhap.test.ts). |
+| KT-03-01 | FR-03 | — | Pass | 28/11/2026 | Mở bàn trống với 4 khách. | HTTP 201, đúng bàn, 4 khách, phiên mở. | Đạt trong [04-phien-ban](../backend/test/04-phien-ban.test.ts). |
+| KT-03-02 | FR-03 | — | Pass | 28/11/2026 | Gửi yêu cầu mở bàn đồng thời và mở lại bàn đã có khách. | Một phiên mở. Mở lại nhận `TABLE_ALREADY_OPEN` kèm `tabId`. | Đạt trong hai test của [04-phien-ban](../backend/test/04-phien-ban.test.ts). |
+| KT-09-01 | FR-09 | — | Pass | 28/11/2026 | Mở ca, thu tiền mặt và đóng ca bằng Quản lý ca. | Chênh lệch bằng tiền đếm trừ tiền đầu ca và tiền thu. | Công thức đạt với bộ số liệu tự động trong [05-thanh-toan-ca](../backend/test/05-thanh-toan-ca.test.ts). |
+| KT-09-02 | FR-09 | — | Pass | 28/11/2026 | Mở ca lần hai khi còn ca đang mở. | Lỗi `SHIFT_ALREADY_OPEN` kèm ID ca hiện tại. | Đạt trong [05-thanh-toan-ca](../backend/test/05-thanh-toan-ca.test.ts). |
+| KT-10-01 | FR-10 | — | Pass | 28/11/2026 | Thay keg chưa đạt ngưỡng 90% bằng keg trong kho và xác nhận. | Keg cũ hết, keg mới đang dùng đúng vòi. | Đạt trong [06-keg-gio-vang](../backend/test/06-keg-gio-vang.test.ts). |
+| KT-11-01 | FR-11 | — | Pass | 28/11/2026 | Tạo món có mã tắt duy nhất rồi đặt hết món. | Thực đơn trả `available: false`. | Đạt trong [03-danh-muc](../backend/test/03-danh-muc.test.ts). |
+| KT-11-02 | FR-11 | — | Pass | 28/11/2026 | Tạo món trùng mã tắt. | HTTP 409, `DUPLICATE_SHORTCUT`. | Đạt trong [03-danh-muc](../backend/test/03-danh-muc.test.ts). |
+| KT-12-01 | FR-12 | — | Pass | 28/11/2026 | Tạo khu và bàn có mã duy nhất. | Tạo thành công, bàn thuộc đúng khu. | Đạt trong [03-danh-muc](../backend/test/03-danh-muc.test.ts). |
+| KT-12-02 | FR-12 | — | Pass | 28/11/2026 | Xóa bàn đang có khách. | HTTP 409, `TABLE_NOT_EMPTY`. | Đạt trong [03-danh-muc](../backend/test/03-danh-muc.test.ts). |
+| KT-13-01 | FR-13 | — | Pass | 28/11/2026 | Tạo tài khoản Quản lý ca, đăng nhập và kiểm tra danh sách nhân viên. | Đăng nhập được, danh sách không trả mật khẩu/PIN. | Đạt trong [03-danh-muc](../backend/test/03-danh-muc.test.ts). |
+| KT-13-02 | FR-13 | — | Pass | 28/11/2026 | Tạo tài khoản bằng email đã tồn tại. | HTTP 409, `DUPLICATE_EMAIL`. | Đạt trong [03-danh-muc](../backend/test/03-danh-muc.test.ts). |
+| KT-14-01 | FR-14 | — | Pass | 28/11/2026 | Nhập 3 keg và lọc Trong kho. | Ba mã riêng, đúng trạng thái kho. | Đạt trong [06-keg-gio-vang](../backend/test/06-keg-gio-vang.test.ts). |
+| KT-15-01 | FR-15 | — | Pass | 28/11/2026 | Gửi lượt trong khung giờ vàng. | Lượt chốt giá ưu đãi. | Đạt với khung giờ và giá mẫu của [06-keg-gio-vang](../backend/test/06-keg-gio-vang.test.ts). |
+| KT-16-01 | FR-16 | — | Pass | 28/11/2026 | Đối soát báo cáo hôm nay với hóa đơn và phiên đang mở từ seed. | Doanh thu và tạm tính khớp nguồn đối soát. | Đạt ở API với dữ liệu seed trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
+| KT-16-02 | FR-16 | — | Pass | 28/11/2026 | Quầy gọi API tổng quan. | HTTP 403. | Đạt trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
+| KT-17-02 | FR-17 | — | Pass | 28/11/2026 | Quản lý ca gọi API hao hụt. | HTTP 403. | Đạt trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
+| KT-18-02 | FR-18 | — | Pass | 28/11/2026 | Quầy gọi API nhật ký hủy/giảm. | HTTP 403. | Đạt trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
+| KT-19-02 | FR-19 | — | Pass | 28/11/2026 | Gọi API với khoảng ngày vượt 31 ngày. | HTTP 400, `RANGE_TOO_LARGE`. | Đạt ở API trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
+
+Các ca chưa có đủ bằng chứng tương ứng trong lần chạy backend vẫn ở trạng thái `Not Run` đối với phần chưa được kiểm tra. Ví dụ, KT-02-01 cần kiểm tra bố cục ở 1366×768 và KT-17-01 có kết quả API hao hụt 4 L (8%) nhưng còn cần xác minh tô đỏ trên giao diện.
