@@ -1,0 +1,37 @@
+# Blueprint triển khai backend lên Render (BE-08, SRS mục 4: Render gói miễn phí).
+# Render Dashboard → New → Blueprint → chọn repo này. Các biến `sync: false` được hỏi khi tạo,
+# điền giá trị thật ở đó, không ghi vào file này.
+services:
+  - type: web
+    name: bia-hoi-backend
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+    # develop: bản sửa lỗi BE-09 lên Render ngay khi PR được merge (main chỉ cập nhật ở Gate)
+    branch: develop
+    # Gói Free không có pre-deploy command nên migration chạy cuối bước build.
+    # --include=dev: cần prisma CLI và typescript để build dù NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build && npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        sync: false # chuỗi kết nối Neon (CSDL chung của nhóm)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: CORS_ORIGIN
+        sync: false # vd https://bia-hoi.vercel.app,https://bia-hoi-*.vercel.app
+      - key: VIETQR_BANK
+        value: MB
+      - key: VIETQR_ACCOUNT
+        sync: false
+      - key: VIETQR_ACCOUNT_NAME
+        value: QUAN BIA HOI DEMO

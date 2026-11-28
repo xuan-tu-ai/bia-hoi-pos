@@ -47,8 +47,21 @@ src/
 
 Quy ước (SRS 8.1, 9.1): `OrderLine` và `Payment` chỉ thêm; hủy/giảm = thêm dòng âm; giá chốt khi gửi lượt; mọi thao tác ghi `AuditLog`; các thao tác ghi nhiều bảng nằm trong `prisma.$transaction`. Quyền kiểm tra ở backend bằng `requireRole(...)` cho từng API.
 
-## Triển khai (Render)
+## Triển khai (Render) — BE-08
 
-- Build command: `npm install && npm run build && npx prisma migrate deploy`
-- Start command: `npm start`
-- Biến môi trường: như `.env.example` (`CORS_ORIGIN` = địa chỉ Vercel của frontend).
+Cấu hình nằm trong [`render.yaml`](../render.yaml) ở gốc repo (Render Blueprint, gói Free, vùng Singapore, nhánh `develop`).
+
+1. Render Dashboard → **New → Blueprint** → chọn repo này → Render đọc `render.yaml`.
+2. Điền các biến được hỏi:
+   - `DATABASE_URL`: chuỗi kết nối Neon của CSDL chung (lấy từ người phụ trách backend, **không** ghi vào repo).
+   - `CORS_ORIGIN`: địa chỉ Vercel của frontend, nhiều địa chỉ ngăn cách bằng dấu phẩy; `*` thay cho một đoạn tên miền để mở cho bản preview, ví dụ `https://bia-hoi.vercel.app,https://bia-hoi-*.vercel.app`.
+   - `VIETQR_ACCOUNT`: số tài khoản nhận chuyển khoản.
+   - `JWT_SECRET` do Render tự sinh.
+3. Mỗi lần build Render chạy `npm ci --include=dev && npm run build && npx prisma migrate deploy` (gói Free không có pre-deploy nên migration nằm trong build), rồi `npm start`.
+4. Kiểm tra: `GET https://<tên-dịch-vụ>.onrender.com/health` → `{"ok":true}` (có kiểm tra kết nối CSDL; lỗi CSDL trả `503`). API ở `https://<tên-dịch-vụ>.onrender.com/api`; frontend đặt `VITE_API_URL` bằng địa chỉ này.
+
+Lưu ý:
+
+- Khi `NODE_ENV=production`, server từ chối khởi động nếu `JWT_SECRET` còn là giá trị mẫu hoặc `DATABASE_URL` trỏ vào `localhost`.
+- Gói Free "ngủ" sau 15 phút không có request; request đầu tiên mất khoảng 30–60 giây. Trước buổi demo mở `/health` trước vài phút (SRS mục 11).
+- Không chạy `db seed` từ Render: seed xóa toàn bộ dữ liệu. Khi cần làm mới dữ liệu mẫu, người phụ trách backend chạy `npx prisma db seed` từ máy với `DATABASE_URL` của Neon.
