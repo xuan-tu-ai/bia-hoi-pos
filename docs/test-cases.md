@@ -103,5 +103,3 @@ Backend trên `develop` đạt **58/58 test tự động** theo kết quả đ�
 | KT-17-02 | FR-17 | — | Pass | Quản lý ca gọi API hao hụt. | HTTP 403. | 28/11/2026 — Đạt trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
 | KT-18-02 | FR-18 | — | Pass | Quầy gọi API nhật ký hủy/giảm. | HTTP 403. | 28/11/2026 — Đạt trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
 | KT-19-02 | FR-19 | — | Pass | Gọi API với khoảng ngày vượt 31 ngày. | HTTP 400, `RANGE_TOO_LARGE`. | 28/11/2026 — Đạt ở API trong [07-bao-cao](../backend/test/07-bao-cao.test.ts). |
-
-Các ca chưa có đủ bằng chứng tương ứng trong lần chạy backend vẫn ở trạng thái `Not Run` đối với phần chưa được kiểm tra. Ví dụ, KT-02-01 cần kiểm tra bố cục ở 1366×768 và KT-17-01 có kết quả API hao hụt 4 L (8%) nhưng còn cần xác minh tô đỏ trên giao diện.
